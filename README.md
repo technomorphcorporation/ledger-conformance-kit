@@ -24,7 +24,7 @@ Two bundled ledgers. The reference implementation holds all fourteen. The other 
 deliberately ordinary:
 
 ```
-  naive-ledger   seed=42
+  naive-ledger   seed=42        # amounts below are drawn from the seed
   INV-04   FAIL   BLOCKER  Duplicate submission is a no-op          replay wrote 2 extra journal entries
   INV-05   FAIL   BLOCKER  Concurrent duplicates collapse to one    64 of 64 submissions of one key applied, expected at most 1
   INV-06   FAIL   BLOCKER  No lost updates on a hot account         balance 206.00 after 500 of 500 credits applied — lost 294.00
@@ -134,6 +134,12 @@ never failure. The kit has opinions about correctness, not about your feature se
 assumed either: the HTTP adapter starts with no capabilities until you pass `--capabilities`,
 so an undeclared feature is a skipped invariant rather than a red one.
 
+The seed on every run controls the workload — the amounts each invariant moves and the
+transaction ids it stamps — so a finding that names a transaction can be found again by
+re-running with the same seed. It does not control thread interleaving, so a concurrency
+finding may need more than one run to reappear; the kit says so rather than implying a
+reproduction it cannot deliver.
+
 A finding is also always measured against what your ledger *applied*, never against what was
 submitted. A ledger that refuses a conflicting write — a serialization failure under
 SERIALIZABLE, say — has lost nothing, and the suite says so rather than reporting the
@@ -160,12 +166,14 @@ M-03  OK  INV-06  hot-account balance read-modify-written without lock
 M-04  OK  INV-09  sufficient-funds check runs before the lock is taken
 ```
 
-**Where this currently falls short, stated plainly.** Seven of the fourteen invariants have
-a mutant. INV-01, 03, 07, 11, 12, 13 and 14 do not, so they are not yet demonstrated to
-catch anything — they are reasoned, reviewed and passing a correct ledger, which is less
-than the other seven can claim. The mutation test also asserts only that the named invariant
-broke, not that the others held, so specificity is not yet enforced. Both gaps are recorded
-in `Mutants.java` and being closed.
+Each mutant declares the **exact** set of invariants it should break, and the build fails if
+it breaks any others: a defect that reddens half the suite is not evidence for any single
+invariant. Every invariant in the registry must appear in some mutant's expected set, so one
+cannot ship on reasoning alone.
+
+Where two invariants genuinely catch the same defect, the coupling is declared rather than
+engineered around — INV-08 and INV-13 assert the same identity at different scales, and both
+mutants that target it name both.
 
 New invariants go through an RFC in [`rfcs/`](rfcs/) with a mutant demonstrating what they
 catch.

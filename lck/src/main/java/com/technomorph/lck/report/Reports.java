@@ -7,6 +7,7 @@ import com.technomorph.lck.core.Invariants.Status;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Four output formats, each aimed at a different reader.
@@ -177,14 +178,55 @@ public final class Reports {
 
     // ------------------------------------------------------------------ util
 
+    /**
+     * XML and HTML escaping, including the control characters XML 1.0 simply forbids.
+     *
+     * <p>The text passing through here includes adapter exception messages and the ledger's own
+     * rejection reasons, which are outside this project's control. A stray tab used to be
+     * emitted raw into an attribute and a form feed made the whole JUnit file unparseable, so a
+     * defect in a client's error string became a broken report rather than a finding.
+     */
     private static String esc(String s) {
-        return s == null ? "" : s.replace("&", "&amp;").replace("<", "&lt;")
-                .replace(">", "&gt;").replace("\"", "&quot;");
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '&'  -> sb.append("&amp;");
+                case '<'  -> sb.append("&lt;");
+                case '>'  -> sb.append("&gt;");
+                case '"'  -> sb.append("&quot;");
+                case '\'' -> sb.append("&#39;");
+                case '\t' -> sb.append("&#9;");
+                case '\n' -> sb.append("&#10;");
+                case '\r' -> sb.append("&#13;");
+                default -> { if (c >= 0x20 && c != 0x7F) sb.append(c); }   // other C0 are illegal in XML
+            }
+        }
+        return sb.toString();
     }
 
+    /** JSON string escaping. Every character below 0x20 must be escaped, not only newline. */
     private static String jesc(String s) {
-        return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\n", "\\n").replace("\r", "");
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '\\' -> sb.append("\\\\");
+                case '"'  -> sb.append("\\\"");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                case '\b' -> sb.append("\\b");
+                case '\f' -> sb.append("\\f");
+                default -> {
+                    if (c < 0x20) sb.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
+                    else sb.append(c);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private static final String CSS = """
