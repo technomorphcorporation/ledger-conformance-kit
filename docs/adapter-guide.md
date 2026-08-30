@@ -113,7 +113,7 @@ Returning `123` is the single most common adapter bug. *(TCK-02)*
 crash, and INV-09 will report nonsense. *(TCK-04)*
 
 **3. `reset()` that does not reset.** Point it at a scratch schema and truncate. If state
-leaks between invariants the findings are meaningless. *(TCK-01, TCK-09)*
+leaks between invariants the findings are meaningless. *(TCK-00, TCK-01)*
 
 **4. `journal()` returning a live view or an unordered collection.** Return a snapshot, in
 commit order. A `HashMap` iteration order will fail INV-02 and INV-14 for reasons that

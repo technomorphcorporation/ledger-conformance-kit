@@ -49,6 +49,47 @@ class AdapterTckTest {
         assertFalse(AdapterTck.trustworthy(AdapterTck.verify(wrong)));
     }
 
+    @Test
+    @DisplayName("a non-empty environment is refused before anything is reset")
+    void nonEmptyEnvironmentIsRefusedBeforeAnyWrite() {
+        PopulatedLedger populated = new PopulatedLedger();
+
+        List<AdapterTck.Finding> fs = AdapterTck.verify(populated);
+
+        assertFalse(AdapterTck.trustworthy(fs), "an environment with existing data must not be trusted");
+        assertEquals(0, populated.resets, "the TCK reset an environment it had already judged non-empty");
+        assertEquals(1, fs.size(), "no check may run after the scratch check has refused");
+        assertEquals("TCK-00", fs.get(0).id());
+        // two legs from the seed, two from the transfer
+        assertTrue(fs.get(0).detail().contains("4 entries"),
+                () -> "the refusal must say how much data it found: " + fs.get(0).detail());
+    }
+
+    @Test
+    @DisplayName("the scratch check is the first thing the TCK does")
+    void scratchCheckRunsFirst() {
+        List<AdapterTck.Finding> fs = AdapterTck.verify(new ReferenceLedger());
+        assertEquals("TCK-00", fs.get(0).id(),
+                "TCK-00 must run before any check that calls reset(), or it can only confirm "
+                        + "the wipe it exists to prevent");
+    }
+
+    /** Already holds data, and counts every reset() so the test can prove none happened. */
+    static final class PopulatedLedger extends Delegating {
+        int resets;
+
+        PopulatedLedger() {
+            try {
+                inner.seed("acct:existing", 100_000);
+                inner.post(Transaction.transfer("acct:existing", "acct:other", 2_500, "prior-activity"));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        @Override public void reset() throws Exception { resets++; super.reset(); }
+    }
+
     abstract static class Delegating implements LedgerAdapter {
         protected final ReferenceLedger inner = new ReferenceLedger();
         @Override public String name() { return "deliberately-wrong-adapter"; }

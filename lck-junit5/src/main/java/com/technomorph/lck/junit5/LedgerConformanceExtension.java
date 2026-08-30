@@ -1,10 +1,11 @@
 package com.technomorph.lck.junit5;
 
 import com.technomorph.lck.core.Invariants;
+import com.technomorph.lck.core.Invariants.Invariant;
 import com.technomorph.lck.core.Invariants.Result;
 import com.technomorph.lck.spi.LedgerAdapter;
 import com.technomorph.lck.tck.AdapterTck;
-import org.junit.jupiter.api.DynamicTest;
+
 import org.junit.jupiter.api.extension.*;
 
 import java.util.ArrayList;
@@ -19,6 +20,13 @@ import static org.junit.jupiter.api.Assumptions.abort;
  * <p>The adapter TCK runs first. If the adapter itself is wrong, every conformance test
  * is <em>aborted</em> rather than failed — a red scorecard produced by a broken adapter
  * is worse than no scorecard, because someone will act on it.
+ *
+ * <p><b>Nothing touches the ledger during discovery.</b> The test names come from the
+ * registry, which is static; the adapter is not constructed and the TCK does not run until
+ * the first invariant actually executes. An IDE listing the tests in this class, or a
+ * {@code --dry-run}, therefore does not reset the environment the adapter points at — which
+ * matters most in exactly the case where the adapter is pointed somewhere it should not be.
+ * It also means selecting one invariant runs one invariant, not all fourteen.
  */
 public final class LedgerConformanceExtension implements TestTemplateInvocationContextProvider {
 
@@ -31,23 +39,43 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
     public java.util.stream.Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(
             ExtensionContext ctx) {
         LedgerConformance cfg = ctx.getRequiredTestClass().getAnnotation(LedgerConformance.class);
-        LedgerAdapter adapter = instantiate(cfg.adapter());
+        Suite suite = new Suite(cfg);
 
-        List<AdapterTck.Finding> tck = AdapterTck.verify(adapter);
-        List<Result> results = AdapterTck.trustworthy(tck)
-                ? Invariants.run(adapter, cfg.seed())
-                : List.of();
-
-        List<TestTemplateInvocationContext> out = new ArrayList<>();
-        if (!AdapterTck.trustworthy(tck)) {
-            String why = tck.stream().filter(f -> !f.ok())
-                    .map(f -> f.id() + " " + f.requirement() + " — " + f.detail())
-                    .reduce((a, b) -> a + "; " + b).orElse("unknown");
-            out.add(named("adapter TCK", () -> abort("adapter is not conformant, results suppressed: " + why)));
-            return out.stream();
-        }
-        for (Result r : results) out.add(named(r.id() + " " + r.title(), () -> assertHeld(r, cfg)));
+        List<TestTemplateInvocationContext> out = new ArrayList<>(Invariants.REGISTRY.size());
+        for (Invariant inv : Invariants.REGISTRY)
+            out.add(named(inv.id() + " " + inv.title(), () -> suite.execute(inv)));
         return out.stream();
+    }
+
+    /**
+     * The adapter and its TCK verdict, established once on first use and shared by every
+     * invocation. Synchronized rather than lazily raced: JUnit may run these in parallel,
+     * and two adapters against one ledger is its own kind of finding.
+     */
+    private static final class Suite {
+        private final LedgerConformance cfg;
+        private LedgerAdapter adapter;
+        private String tckFailure;      // null once the TCK has run and passed
+
+        Suite(LedgerConformance cfg) { this.cfg = cfg; }
+
+        private synchronized void ensureVerified() {
+            if (adapter != null) return;
+            LedgerAdapter a = instantiate(cfg.adapter());
+            List<AdapterTck.Finding> tck = AdapterTck.verify(a);
+            if (!AdapterTck.trustworthy(tck))
+                tckFailure = tck.stream().filter(f -> !f.ok())
+                        .map(f -> f.id() + " " + f.requirement() + " — " + f.detail())
+                        .reduce((x, y) -> x + "; " + y).orElse("unknown");
+            adapter = a;
+        }
+
+        void execute(Invariant inv) {
+            ensureVerified();
+            if (tckFailure != null)
+                abort("adapter is not conformant, results suppressed: " + tckFailure);
+            assertHeld(Invariants.runOne(adapter, inv, cfg.seed()), cfg);
+        }
     }
 
     private static void assertHeld(Result r, LedgerConformance cfg) {

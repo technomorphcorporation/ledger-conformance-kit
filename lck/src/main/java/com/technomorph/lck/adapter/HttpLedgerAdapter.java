@@ -20,9 +20,10 @@ import java.util.*;
  *   POST /_lck/post      {"idempotencyKey","legs":[{"accountId","type","amountSubunits","currency"}],
  *                         "allowOverdraft"}          -> {"status","transactionId","reason"}
  *   GET  /_lck/balance?account=&amp;currency=            -> {"subunits":12345}
- *   GET  /_lck/journal                                -> [{"transactionId","accountId","type",
- *                                                          "amountSubunits","currency","sequence",
- *                                                          "accountSequence","prevHash","entryHash"}]
+ *   GET  /_lck/journal                                -> [{"entryId","transactionId","accountId",
+ *                                                          "type","amountSubunits","currency",
+ *                                                          "sequence","accountSequence",
+ *                                                          "prevHash","entryHash"}]
  * </pre>
  *
  * <p>Roughly 80 lines to implement in any stack. Mount it behind a build-profile flag so
@@ -41,10 +42,11 @@ public final class HttpLedgerAdapter implements LedgerAdapter {
     public HttpLedgerAdapter(String baseUrl, Set<Capability> capabilities) {
         this.base = URI.create(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
         this.caps = capabilities;
+        // HTTP/1.1 rather than negotiating: a burst opens hundreds of concurrent requests, and
+        // an h2 upgrade would multiplex them onto one connection, serialising at the client and
+        // making a correct ledger look slow. Concurrency is the measurement here, so keep it real.
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
-                // A connection pool large enough that the harness, not the client, is
-                // the bottleneck. Under-sizing this makes a correct ledger look serial.
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
     }

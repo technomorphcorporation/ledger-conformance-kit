@@ -21,19 +21,26 @@ that system.
 
 ## Threat model
 
-This is a test harness that runs in CI against a scratch environment. Three properties are
-guaranteed and enforced by `./gradlew complianceCheck`:
+This is a test harness that runs against a scratch environment. Two properties are enforced
+by `./gradlew complianceCheck`, and a third depends on how you deploy it:
 
 1. **No network egress** beyond the adapter endpoint the operator configures. No telemetry,
-   no analytics, no update check, no licence call. Runs air-gapped.
-2. **No production data**, structurally: the adapter contract cannot express a read of
-   pre-existing records, and `AdapterTck` TCK-09 refuses a non-empty environment.
-3. **Zero runtime dependencies** in `lck-spi` and `lck`.
+   no analytics, no update check, no licence call. Runs air-gapped. The build fails on a
+   telemetry-shaped reference in any source file, and on any remote asset — a webfont, a
+   script, a stylesheet — referenced by output the kit emits.
+2. **Zero runtime dependencies** in `lck-spi` and `lck`.
+3. **No production data** — this one is a deployment property, not a structural one.
+   `journal()` returns whatever the ledger holds, so what protects you is where you point
+   the adapter. `AdapterTck` TCK-00 reads the journal before any check writes and refuses
+   to continue if it is not already empty, which turns a misconfiguration into a refusal
+   instead of a wipe.
 
 Full detail for a third-party review: [COMPLIANCE.md](COMPLIANCE.md).
 
 ## Supply chain
 
-Releases are GPG-signed and Sigstore-signed, published to Maven Central with SHA-256
-checksums and a CycloneDX SBOM. Builds are reproducible. The Gradle wrapper is pinned and
-validated in CI.
+Builds are reproducible: jar timestamps are normalized and file order is fixed. The Gradle
+wrapper is pinned by SHA-256, so a swapped distribution fails the build rather than running.
+Release signing is configured (GPG, in-memory key) but nothing has been published yet — there
+is no Maven Central release, no SBOM and no Sigstore attestation. `COMPLIANCE.md` lists what
+is in place and what is not, and this section will grow as those land.

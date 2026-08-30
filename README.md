@@ -145,13 +145,20 @@ Every build runs a mutation check:
    injected defect, must each trip their named invariant.
 
 ```
-M-01  OK  INV-05  idempotency claim is check-then-act instead of atomic   caught by [INV-05]
-M-03  OK  INV-06  hot-account balance read-modify-written without lock    caught by [INV-06]
-M-04  OK  INV-09  sufficient-funds check runs before the lock is taken    caught by [INV-09]
+M-01  OK  INV-05  idempotency claim is check-then-act instead of atomic
+M-03  OK  INV-06  hot-account balance read-modify-written without lock
+M-04  OK  INV-09  sufficient-funds check runs before the lock is taken
 ```
 
+**Where this currently falls short, stated plainly.** Seven of the fourteen invariants have
+a mutant. INV-01, 03, 07, 11, 12, 13 and 14 do not, so they are not yet demonstrated to
+catch anything — they are reasoned, reviewed and passing a correct ledger, which is less
+than the other seven can claim. The mutation test also asserts only that the named invariant
+broke, not that the others held, so specificity is not yet enforced. Both gaps are recorded
+in `Mutants.java` and being closed.
+
 New invariants go through an RFC in [`rfcs/`](rfcs/) with a mutant demonstrating what they
-catch. An invariant with no mutant that only it catches does not ship.
+catch.
 
 ---
 
@@ -161,11 +168,14 @@ catch. An invariant with no mutant that only it catches does not ship.
   `./gradlew complianceCheck`, not just claimed. Only `lck-junit5` pulls a third-party
   jar, and only if you use the JUnit integration
 - **No network egress** except to the adapter endpoint you configure. No telemetry, no
-  update check, no licence call. Runs air-gapped
-- **No production data**, structurally: the adapter contract cannot express a read of
-  pre-existing records, and the TCK refuses a non-empty environment
-- Apache-2.0, no copyleft in the tree; GPG- and Sigstore-signed releases; reproducible
-  builds; CycloneDX SBOM; pinned and validated Gradle wrapper
+  update check, no licence call. Runs air-gapped — and `complianceCheck` fails the build on
+  any remote asset referenced by a report, so opening one fetches nothing
+- **No production data** if you point it at a scratch environment. `journal()` returns what
+  the ledger holds, so this is a deployment property; `AdapterTck` TCK-00 reads the journal
+  before anything writes and refuses to continue if it is not already empty
+- Apache-2.0, no copyleft in the tree; reproducible builds; Gradle wrapper pinned by
+  SHA-256. Release signing is configured but nothing has been published yet — see
+  COMPLIANCE.md for what is and is not in place
 
 Full detail: [COMPLIANCE.md](COMPLIANCE.md) · [SECURITY.md](SECURITY.md)
 

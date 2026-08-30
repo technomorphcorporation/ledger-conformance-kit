@@ -25,6 +25,10 @@ import java.util.*;
  *
  * <p>Same pattern as the JDBC and Jakarta Persistence TCKs, and for the same reason:
  * a pluggable contract is only worth something if plugins can be verified.
+ *
+ * <p><b>Order matters.</b> TCK-00 runs before any check that writes, and aborts the rest if
+ * the environment is not already empty. Every other check begins with {@code reset()}, so it
+ * is the only check whose refusal can still prevent anything.
  */
 public final class AdapterTck {
 
@@ -32,6 +36,24 @@ public final class AdapterTck {
 
     public static List<Finding> verify(LedgerAdapter led) {
         List<Finding> out = new ArrayList<>();
+
+        // First, and before anything that writes. Every check below opens with reset(), so a
+        // scratch-environment check placed after them can only ever confirm the wipe it was
+        // there to prevent. If this one fails we return immediately: the suite has not yet
+        // touched the ledger, and that is the only state in which refusing still means
+        // something.
+        Finding scratch = check("TCK-00", "the adapter is pointed at a scratch environment", () -> {
+            int entries = led.journal().size();
+            if (entries != 0)
+                return "the journal already holds " + entries + " entries before the suite has "
+                        + "written anything. This adapter may be pointed at an environment with "
+                        + "existing data, and every check below calls reset(). Never run against "
+                        + "production.";
+            return null;
+        });
+        out.add(scratch);
+        if (!scratch.ok()) return out;
+
         out.add(check("TCK-01", "reset() empties all state", () -> {
             led.seed("tck:a", 5_000);
             if (led.journal().isEmpty()) return "journal empty after a successful post";
@@ -129,14 +151,6 @@ public final class AdapterTck {
                 if (led.replayBalance("tck:a", "USD") != led.balance("tck:a"))
                     return "REPLAY declared but replayBalance disagrees with balance on a trivial case";
             }
-            return null;
-        }));
-
-        out.add(check("TCK-09", "the adapter is talking to a scratch environment", () -> {
-            led.reset();
-            if (!led.journal().isEmpty())
-                return "journal is non-empty immediately after reset() — this adapter may be "
-                        + "pointed at an environment with existing data. Never run against production.";
             return null;
         }));
 

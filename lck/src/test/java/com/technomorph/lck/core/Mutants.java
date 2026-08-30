@@ -3,7 +3,6 @@ package com.technomorph.lck.core;
 import com.technomorph.lck.examples.ReferenceLedger;
 import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.LedgerAdapter;
-import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.Model.*;
 
 import java.util.*;
@@ -21,16 +20,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *       and they will be right.</li>
  * </ul>
  *
- * <p>Each mutant below is the reference ledger with exactly one defect injected. The
- * build asserts that the mutant's named invariant <em>fails</em> and that every other
- * invariant still passes. An invariant with no mutant that only it catches is not
- * pulling its weight and does not ship.
+ * <p>Each mutant below is the reference ledger with exactly one defect injected, and the
+ * build asserts that the mutant's named invariant <em>fails</em>.
  *
- * <p>The other half of the vetting is in {@code MutationTest}: every invariant must
- * also pass against two independent <em>correct</em> implementations (this in-memory
- * one and the JDBC-backed one). An invariant that fails a known-good implementation is
- * a bug in the invariant, not a finding — and it is caught here rather than in front of
- * a client.
+ * <p>Two gaps, both open and both worth closing before this corpus is cited as evidence:
+ * <ul>
+ *   <li>Seven invariants have a mutant. INV-01, 03, 07, 11, 12, 13 and 14 do not, so they
+ *       are not yet demonstrated to catch anything.</li>
+ *   <li>{@code MutationTest} asserts only that the named invariant broke, not that the others
+ *       held. Until it does, a mutant with a wide blast radius passes, and specificity — what
+ *       makes a finding attributable to one defect rather than to general malaise — is not
+ *       enforced.</li>
+ * </ul>
+ *
+ * <p>The other half of the vetting is {@code noFalsePositives}: every invariant must pass the
+ * reference ledger. An invariant that fails a known-good implementation is a bug in the
+ * invariant, not a finding, and it is caught here rather than in front of a client.
  */
 public final class Mutants {
 

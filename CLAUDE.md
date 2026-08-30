@@ -74,13 +74,17 @@ Required, in this order:
 
 ## Testing conventions
 
-- `./gradlew verify` is what CI runs. Use it before saying anything is done.
+- `./gradlew verify` is the full gate. Use it before saying anything is done. There is no
+  CI yet, so it runs only where someone runs it.
 - `./gradlew demo` runs the suite against both example ledgers. The naive one is
-  **supposed** to fail eight invariants — that is a fixture, not a regression.
+  **supposed** to fail — currently ten invariants, passing three and skipping one. That is a
+  fixture, not a regression. Nothing pins the exact set yet, which is why the number drifted
+  from eight; pin it before relying on it.
 - Concurrency invariants use `Harness.burst(n, task)`, which releases every task from a
   latch simultaneously. Do not replace it with a plain executor: these defects live in a
   window of microseconds and a staggered submission misses them.
-- Testcontainers tests skip cleanly without Docker. Do not make them fail instead.
+- There are no Testcontainers tests yet. If you add one, it must skip cleanly without
+  Docker rather than fail.
 
 ## Style
 
@@ -123,5 +127,7 @@ sentence, factual, no persuasion.
 - Do not weaken an invariant to make a client's ledger pass. The finding is the product.
 - Do not add scoring, grading or a "compliance percentage". The kit reports what held; it
   does not certify.
-- Do not run the suite against anything but a scratch environment. `AdapterTck` TCK-09
-  refuses a non-empty one, and that check must never be relaxed.
+- Do not run the suite against anything but a scratch environment. `AdapterTck` TCK-00
+  refuses a non-empty one, and that check must never be relaxed or moved. It runs before
+  any check that writes, and `AdapterTckTest` asserts both that ordering and that a refused
+  environment is never reset.

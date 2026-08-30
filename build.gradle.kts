@@ -109,12 +109,26 @@ tasks.register("complianceCheck") {
             require(external.isEmpty()) { "$name must have zero external runtime deps, found: $external" }
         }
         val banned = Regex("""(?i)(analytics|telemetry|posthog|segment\.io|sentry|mixpanel)""")
+
+        // A report is opened on a reviewer's machine inside a bank. Any asset it references
+        // over the network is an outbound request COMPLIANCE.md says we never make — and a
+        // webfont link sat in the report template until this check was written, because the
+        // banned-word list above cannot see a URL. Match the shape of a fetched asset rather
+        // than a hostname: a blocklist of vendors only catches the vendors already thought of.
+        val remoteAsset = Regex("""(?i)(?:href|src)\s*=\s*\\?["']https?://|@import\s+(?:url\()?\s*\\?["']?https?://""")
+
         sources.forEach { f ->
-            banned.find(f.readText())?.let {
+            val text = f.readText()
+            banned.find(text)?.let {
                 throw GradleException("telemetry-shaped reference '${it.value}' in ${f.relativeTo(rootDir)}")
             }
+            remoteAsset.find(text)?.let {
+                throw GradleException("emitted output fetches a remote asset ('${it.value.trim()}...') in "
+                        + "${f.relativeTo(rootDir)} — reports must render with no network access")
+            }
         }
-        logger.lifecycle("compliance: zero runtime dependencies, no telemetry, reproducible jars")
+        logger.lifecycle("compliance: zero runtime dependencies, no telemetry, "
+                + "no remote assets in emitted output, reproducible jars")
     }
 }
 

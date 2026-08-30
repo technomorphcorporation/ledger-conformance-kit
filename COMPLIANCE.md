@@ -15,15 +15,17 @@ production. Its blast radius is a CI job and a scratch database schema.
 
 | Question | Answer |
 |---|---|
-| Does it read production data? | **No, structurally.** The adapter contract has no method that returns pre-existing records. `reset()` is mandatory and the suite creates every account it uses |
+| Does it read production data? | **Not if pointed at a scratch environment.** `journal()` returns whatever the ledger holds, so this is enforced by TCK-00 and by where you point the adapter, not by the shape of the contract. `reset()` is mandatory and the suite creates every account it uses |
 | Does it store anything? | Only report files, in a directory you specify. No database, no cache, no state between runs |
 | Does it transmit anything? | **No.** The only outbound connection is to the adapter endpoint you configure |
 | PII / customer data? | Never touched. Account identifiers in the suite are synthetic (`acct:a`, `external:funding`) |
 | Where do reports go? | `build/reports/lck/` by default. Local filesystem, nowhere else |
 
-**Safety net.** `AdapterTck` check TCK-09 refuses to proceed when the environment is not
-empty after `reset()`. This is a backstop against misconfiguration, not a licence to point
-it at production.
+**Safety net.** `AdapterTck` check TCK-00 reads the journal *before* any check that writes,
+and aborts the whole run if it is not already empty. It runs first precisely because every
+other check begins with `reset()`: a scratch-environment check placed after them could only
+confirm the wipe it existed to prevent. This is a backstop against misconfiguration, not a
+licence to point it at production.
 
 ## 3. Network behavior
 
@@ -54,18 +56,22 @@ The zero-dependency rule is a design constraint, not an accident. A test tool th
 two hundred transitive jars onto a classpath fails dependency review on CVE exposure
 before anyone reads what it does. It is also impossible to retrofit.
 
-Full inventory: `gradle/libs.versions.toml`. CycloneDX SBOM attached to every release.
+Full inventory: `gradle/libs.versions.toml` — short enough to read in full, which is the point.
 
 ## 5. Supply chain
 
 - Apache-2.0 throughout. **No copyleft anywhere in the tree.**
-- Releases GPG-signed and Sigstore-signed (keyless, OIDC).
-- SHA-256 checksums published with every release.
-- Reproducible builds: jar timestamps normalized, file order fixed.
-- Published to Maven Central, so it mirrors cleanly into Nexus or Artifactory.
-- Gradle wrapper pinned and validated in CI (`gradle/actions/wrapper-validation`), so a
-  silent distribution swap fails the build.
-- CycloneDX SBOM generated per module.
+- Reproducible builds: jar timestamps normalized, file order fixed. Configured in
+  `build.gradle.kts` and true of any build you run today.
+- Gradle wrapper pinned by SHA-256 (`distributionSha256Sum` in
+  `gradle/wrapper/gradle-wrapper.properties`), so a swapped distribution fails the build
+  rather than executing.
+- Release signing is configured (`signing`, GPG, in-memory key) but no release has been cut.
+
+**Not yet in place, and listed here rather than claimed above:** no CI pipeline, so nothing
+runs `./gradlew verify` except a developer; no published artifacts on Maven Central; no
+CycloneDX SBOM; no Sigstore attestation. These are tracked in `ROADMAP.md` and this section
+will grow as they land.
 
 ## 6. Vulnerability management
 

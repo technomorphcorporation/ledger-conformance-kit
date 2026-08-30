@@ -53,6 +53,10 @@ public final class Invariants {
 
     /** All non-determinism goes through here, seeded, so a failure is reproducible. */
     public static final class Harness {
+
+        /** Long enough for a slow remote ledger under 500-way concurrency; short enough to fail CI. */
+        private static final int BURST_TIMEOUT_SECONDS = 180;
+
         private final long seed;
         private final Random rnd;
 
@@ -69,7 +73,12 @@ public final class Invariants {
             CountDownLatch start = new CountDownLatch(1);
             CountDownLatch done = new CountDownLatch(n);
             List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
-            try (ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor()) {
+            // Deliberately not try-with-resources. ExecutorService.close() waits for
+            // termination without a bound, so a task blocked on the ledger under test would
+            // swallow the timeout below during the unwind and hang the run forever — against
+            // a deadlocked ledger, which is precisely the system this suite gets pointed at.
+            ExecutorService exec = Executors.newVirtualThreadPerTaskExecutor();
+            try {
                 for (int i = 0; i < n; i++) {
                     final int idx = i;
                     exec.submit(() -> {
@@ -84,8 +93,12 @@ public final class Invariants {
                     });
                 }
                 start.countDown();
-                if (!done.await(180, TimeUnit.SECONDS))
-                    throw new TimeoutException("burst of " + n + " did not complete in 180s");
+                if (!done.await(BURST_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                    throw new TimeoutException("burst of " + n + " did not complete in "
+                            + BURST_TIMEOUT_SECONDS + "s; " + (n - done.getCount()) + " of " + n
+                            + " finished, " + done.getCount() + " still in flight");
+            } finally {
+                exec.shutdownNow();
             }
             if (!errors.isEmpty()) {
                 Throwable first = errors.get(0);
@@ -395,27 +408,33 @@ public final class Invariants {
 
     public static List<Result> run(LedgerAdapter led, long seed) {
         List<Result> out = new ArrayList<>(REGISTRY.size());
-        for (Invariant inv : REGISTRY) {
-            if (inv.requires() != null && !led.supports(inv.requires())) {
-                out.add(new Result(inv.id(), inv.title(), inv.severity(), Status.SKIP,
-                        "adapter does not declare " + inv.requires(), inv.productionSymptom(), seed, 0));
-                continue;
-            }
-            long t0 = System.nanoTime();
-            try {
-                led.reset();
-                Check c = inv.body().run(led, new Harness(seed));
-                out.add(new Result(inv.id(), inv.title(), inv.severity(),
-                        c.held() ? Status.PASS : Status.FAIL, c.detail(),
-                        inv.productionSymptom(), seed, ms(t0)));
-            } catch (Throwable t) {
-                // An exception under concurrent load is itself a finding, not a harness bug.
-                out.add(new Result(inv.id(), inv.title(), inv.severity(), Status.ERROR,
-                        t.getClass().getSimpleName() + ": " + t.getMessage(),
-                        inv.productionSymptom(), seed, ms(t0)));
-            }
-        }
+        for (Invariant inv : REGISTRY) out.add(runOne(led, inv, seed));
         return out;
+    }
+
+    /**
+     * One invariant, including its {@code reset()}. Public so a caller that wants a single
+     * invariant does not have to run the other thirteen against a client's ledger to get it —
+     * which is what the JUnit integration needs in order to keep the whole suite out of
+     * test <em>discovery</em>.
+     */
+    public static Result runOne(LedgerAdapter led, Invariant inv, long seed) {
+        if (inv.requires() != null && !led.supports(inv.requires()))
+            return new Result(inv.id(), inv.title(), inv.severity(), Status.SKIP,
+                    "adapter does not declare " + inv.requires(), inv.productionSymptom(), seed, 0);
+        long t0 = System.nanoTime();
+        try {
+            led.reset();
+            Check c = inv.body().run(led, new Harness(seed));
+            return new Result(inv.id(), inv.title(), inv.severity(),
+                    c.held() ? Status.PASS : Status.FAIL, c.detail(),
+                    inv.productionSymptom(), seed, ms(t0));
+        } catch (Throwable t) {
+            // An exception under concurrent load is itself a finding, not a harness bug.
+            return new Result(inv.id(), inv.title(), inv.severity(), Status.ERROR,
+                    t.getClass().getSimpleName() + ": " + t.getMessage(),
+                    inv.productionSymptom(), seed, ms(t0));
+        }
     }
 
     public static int blockerFailures(List<Result> results) {

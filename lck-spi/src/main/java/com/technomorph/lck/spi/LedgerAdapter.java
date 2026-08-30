@@ -10,9 +10,11 @@ import java.util.UUID;
 /**
  * The seam. Five methods, and everything the suite asserts is derivable from them.
  *
- * Discovered at runtime via {@link java.util.ServiceLoader}, so a firm can drop their
- * adapter jar on the classpath without forking the kit — which matters when the
- * adapter contains internal account naming they will never let out of the building.
+ * Loaded by class name — {@code --adapter com.acme.AcmeLedgerAdapter}, or
+ * {@code @LedgerConformance(adapter = AcmeLedgerAdapter.class)} — so a firm can keep their
+ * adapter in their own jar without forking the kit, which matters when it contains internal
+ * account naming they will never let out of the building. A public no-arg constructor is the
+ * only requirement. ({@link java.util.ServiceLoader} discovery is not implemented.)
  */
 public interface LedgerAdapter {
 

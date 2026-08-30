@@ -53,9 +53,6 @@ public final class Reports {
             <!doctype html><html lang="en"><head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>Ledger conformance — %s</title>
-            <link rel="preconnect" href="https://fonts.googleapis.com">
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-            <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:wght@600&display=swap" rel="stylesheet">
             <style>%s</style></head><body><div class="sheet">
             <header>
               <div class="eyebrow">Ledger Conformance Kit &middot; run report</div>
@@ -147,7 +144,7 @@ public final class Reports {
         return """
             {"$schema":"https://json.schemastore.org/sarif-2.1.0.json","version":"2.1.0",
              "runs":[{"tool":{"driver":{"name":"Ledger Conformance Kit",
-              "informationUri":"https://github.com/technomorph/ledger-conformance-kit",
+              "informationUri":"https://github.com/technomorphcorporation/ledger-conformance-kit",
               "rules":[%s]}},"results":[%s]}]}""".formatted(rules, results);
     }
 
@@ -182,51 +179,57 @@ public final class Reports {
     }
 
     private static final String CSS = """
+        /* System stacks only. A report is opened on a reviewer's machine inside a bank;
+           a webfont link would make that an outbound request to a third party, which is
+           the one thing COMPLIANCE.md promises this tool never does. Enforced by the
+           remote-asset check in complianceCheck. */
         :root{--paper:#F2F6F0;--bar:#E1EBDE;--ink:#16221C;--soft:#5C6B60;
-          --rule:#B9CCB6;--stamp:#A32A1F;--ok:#2C6E49}
+          --rule:#B9CCB6;--stamp:#A32A1F;--ok:#2C6E49;
+          --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+          --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+          --serif:Spectral,Georgia,"Times New Roman",serif}
         *{box-sizing:border-box}
-        body{margin:0;background:#DCE4D9;color:var(--ink);font-family:"IBM Plex Sans",
-          -apple-system,sans-serif;font-size:14px;line-height:1.5;padding:28px 16px}
+        body{margin:0;background:#DCE4D9;color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;padding:28px 16px}
         .sheet{max-width:1040px;margin:0 auto;background:var(--paper);border:1px solid var(--rule);
           box-shadow:0 1px 0 #fff inset,0 8px 30px rgba(20,34,27,.13)}
         header{padding:30px 34px 22px;border-bottom:3px double var(--rule)}
-        .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+        .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;
           text-transform:uppercase;color:var(--soft)}
-        h1{font-family:"Spectral",Georgia,serif;font-weight:600;font-size:30px;
+        h1{font-family:var(--serif);font-weight:600;font-size:30px;
           letter-spacing:-.015em;margin:9px 0 6px;line-height:1.15}
         .sub{color:var(--soft);font-size:13.5px;max-width:62ch;margin:0}
-        .meta{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--soft);
+        .meta{font-family:var(--mono);font-size:11px;color:var(--soft);
           margin-top:16px;display:flex;gap:22px;flex-wrap:wrap}
         .meta b{color:var(--ink);font-weight:600}
         .tb{padding:22px 34px;border-bottom:1px solid var(--rule);background:#fff}
-        .tb-label{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+        .tb-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
           text-transform:uppercase;color:var(--soft);margin-bottom:10px}
-        .tb-rows{font-family:"IBM Plex Mono",monospace;font-size:13px;max-width:430px}
+        .tb-rows{font-family:var(--mono);font-size:13px;max-width:430px}
         .tb-row{display:flex;justify-content:space-between;padding:3px 0}
         .tb-row span:last-child{font-variant-numeric:tabular-nums}
         .tb-total{border-top:1px solid var(--ink);border-bottom:3px double var(--ink);
           margin-top:6px;padding:5px 0;font-weight:600}
-        .verdict{margin-top:16px;font-family:"Spectral",Georgia,serif;font-size:19px;font-weight:600}
+        .verdict{margin-top:16px;font-family:var(--serif);font-size:19px;font-weight:600}
         .verdict.bad{color:var(--stamp)}.verdict.good{color:var(--ok)}
         table{width:100%;border-collapse:collapse}
         tbody tr:nth-child(4n+1),tbody tr:nth-child(4n+2){background:var(--bar)}
-        th{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.13em;
+        th{font-family:var(--mono);font-size:10px;letter-spacing:.13em;
           text-transform:uppercase;color:var(--soft);text-align:left;font-weight:600;
           padding:12px 10px;border-bottom:1px solid var(--rule)}
         td{padding:11px 10px;vertical-align:top;border-bottom:1px solid rgba(185,204,182,.55)}
         td:first-child,th:first-child{padding-left:34px}
         td:last-child,th:last-child{padding-right:34px}
-        .id{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--soft);white-space:nowrap}
+        .id{font-family:var(--mono);font-size:11.5px;color:var(--soft);white-space:nowrap}
         .title{font-weight:500}
-        .detail{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--soft);
+        .detail{font-family:var(--mono);font-size:11.5px;color:var(--soft);
           margin-top:4px;line-height:1.45}
         .symptom{font-size:12.5px;color:var(--stamp);margin-top:6px;max-width:52ch}
         tr.pass .symptom{display:none}
-        .flag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;
+        .flag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;
           font-weight:600;padding:3px 7px;white-space:nowrap;border:1px solid currentColor}
         .flag.PASS{color:var(--ok)}.flag.FAIL,.flag.ERROR{color:var(--stamp);background:rgba(163,42,31,.07)}
         .flag.SKIP{color:var(--soft)}
-        .sev{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--soft)}
+        .sev{font-family:var(--mono);font-size:10px;color:var(--soft)}
         .sev.BLOCKER{color:var(--stamp);font-weight:600}
         footer{padding:22px 34px 30px;font-size:12px;color:var(--soft);border-top:3px double var(--rule)}
         @media (max-width:720px){td:first-child,th:first-child{padding-left:16px}
