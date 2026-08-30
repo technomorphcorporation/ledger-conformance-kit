@@ -20,8 +20,13 @@ import java.util.function.IntConsumer;
  * <ul>
  *   <li><b>Every failure reports a number.</b> Not "INV-06 failed" but "lost 498.00 of
  *       500.00". A number is a defect report; a boolean is an opinion.</li>
- *   <li><b>Every run is seeded.</b> The seed prints with the result and reproduces the
- *       same pressure. "Sometimes" is not a finding an engineer can act on.</li>
+ *   <li><b>Every run is seeded.</b> The seed prints with the result, so a finding names the
+ *       conditions that produced it. "Sometimes" is not a finding an engineer can act on.
+ *       <b>Not yet true in the way it should be:</b> the corpus is currently fixed — no
+ *       invariant draws from {@link Harness#random()}, so varying the seed varies nothing.
+ *       Either the invariants start drawing their pressure from it or the seed comes off the
+ *       public surface; until then, treat the printed seed as a label, not a reproduction
+ *       recipe.</li>
  *   <li><b>Concurrency uses a start barrier, not a thread pool.</b> These defects live in
  *       a window of microseconds. Submitting tasks to an executor staggers them and
  *       misses; releasing them all from a latch does not.</li>
@@ -51,7 +56,17 @@ public final class Invariants {
 
     // ================================================================= harness
 
-    /** All non-determinism goes through here, seeded, so a failure is reproducible. */
+    /**
+     * Where all non-determinism is meant to go, seeded, so a failure is reproducible.
+     *
+     * <p>{@link #random()} has no callers today: every invariant uses fixed amounts, accounts
+     * and iteration counts, and the ids that do vary come from {@code UUID.randomUUID()} in
+     * the SPI rather than from here. So the seed is threaded through and reported but changes
+     * nothing about what runs. Note also that {@link Random} shared across a {@link #burst}
+     * would be thread-safe but not deterministic — draws would interleave differently each
+     * run — so making the seed real means deriving a per-task sequence, not handing this
+     * instance to concurrent tasks.
+     */
     public static final class Harness {
 
         /** Long enough for a slow remote ledger under 500-way concurrency; short enough to fail CI. */
