@@ -82,7 +82,7 @@ and this section will grow as they land.
 
 ## 6. Vulnerability management
 
-See `SECURITY.md`. Summary: private disclosure via `security@technomorph.co` or GitHub
+See `SECURITY.md`. Summary: private disclosure via `security@technomorph.tech` or GitHub
 private reporting; acknowledgement within 2 business days; assessment within 10; fix or
 documented mitigation within 90 days, faster for anything exploitable.
 
