@@ -1,0 +1,13 @@
+# One place to see every third-party version in the build. It is short on purpose:
+# lck-spi and lck have ZERO runtime dependencies, so everything below is test-only,
+# except junit-jupiter-api which lck-junit5 needs at compile time.
+
+[versions]
+junit = "5.10.2"
+
+[libraries]
+junit-bom               = { module = "org.junit:junit-bom",                   version.ref = "junit" }
+junit-jupiter           = { module = "org.junit.jupiter:junit-jupiter",       version.ref = "junit" }
+junit-jupiter-api       = { module = "org.junit.jupiter:junit-jupiter-api",   version.ref = "junit" }
+junit-jupiter-params    = { module = "org.junit.jupiter:junit-jupiter-params",version.ref = "junit" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

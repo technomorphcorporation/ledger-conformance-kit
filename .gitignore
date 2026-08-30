@@ -1,0 +1,41 @@
+# Build output
+build/
+out/
+bin/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Commercial and engagement material — see CLAUDE.md.
+# This is a backstop, not the control: the control is not writing it here.
+pricing*
+PRICING*
+proposal*
+PROPOSAL*
+engagement*
+ENGAGEMENT*
+client-*
+CLIENT-*
+pipeline*
+PIPELINE*
+*-findings.*
+*-draft.md
+notes-private*
+private/

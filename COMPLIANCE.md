@@ -1,0 +1,117 @@
+# Compliance & technology risk
+
+Written for a third-party software review at a bank or a regulated fintech. Every claim
+here is asserted by the build (`./gradlew complianceCheck`) rather than promised in prose.
+
+---
+
+## 1. What this software is
+
+A **test harness**. It exercises a ledger you point it at and reports which correctness
+properties held. It is not middleware, it is not deployed, and it does not run in
+production. Its blast radius is a CI job and a scratch database schema.
+
+## 2. Data handling
+
+| Question | Answer |
+|---|---|
+| Does it read production data? | **No, structurally.** The adapter contract has no method that returns pre-existing records. `reset()` is mandatory and the suite creates every account it uses |
+| Does it store anything? | Only report files, in a directory you specify. No database, no cache, no state between runs |
+| Does it transmit anything? | **No.** The only outbound connection is to the adapter endpoint you configure |
+| PII / customer data? | Never touched. Account identifiers in the suite are synthetic (`acct:a`, `external:funding`) |
+| Where do reports go? | `build/reports/lck/` by default. Local filesystem, nowhere else |
+
+**Safety net.** `AdapterTck` check TCK-09 refuses to proceed when the environment is not
+empty after `reset()`. This is a backstop against misconfiguration, not a licence to point
+it at production.
+
+## 3. Network behavior
+
+- **No telemetry.** No analytics, no usage reporting, no crash reporting.
+- **No update check.** No call home on start, ever.
+- **No licence validation.** Apache-2.0; there is nothing to validate.
+- **Runs air-gapped.** Once artifacts are mirrored internally, the tool needs no internet.
+
+Enforced by `complianceCheck`, which greps the main sources for telemetry-shaped
+references and fails the build on a match. The only HTTP client in the codebase is
+`HttpLedgerAdapter`, which connects solely to the base URL passed by the operator.
+
+## 4. Dependencies
+
+| Module | Runtime dependencies |
+|---|---|
+| `lck-spi` | **none** |
+| `lck` | **none** (JDK only, including the HTTP adapter via `java.net.http`) |
+| `lck-junit5` | `junit-jupiter-api` only, and only if you use the JUnit integration |
+
+Three modules, so a reviewer has three POMs to read rather than nine.
+
+**`lck-spi` is the only artifact your engineers compile against.** It has zero
+dependencies and targets Java 17, so a team on 17 can implement an adapter and run the
+suite on a 21 toolchain in CI.
+
+The zero-dependency rule is a design constraint, not an accident. A test tool that drags
+two hundred transitive jars onto a classpath fails dependency review on CVE exposure
+before anyone reads what it does. It is also impossible to retrofit.
+
+Full inventory: `gradle/libs.versions.toml`. CycloneDX SBOM attached to every release.
+
+## 5. Supply chain
+
+- Apache-2.0 throughout. **No copyleft anywhere in the tree.**
+- Releases GPG-signed and Sigstore-signed (keyless, OIDC).
+- SHA-256 checksums published with every release.
+- Reproducible builds: jar timestamps normalized, file order fixed.
+- Published to Maven Central, so it mirrors cleanly into Nexus or Artifactory.
+- Gradle wrapper pinned and validated in CI (`gradle/actions/wrapper-validation`), so a
+  silent distribution swap fails the build.
+- CycloneDX SBOM generated per module.
+
+## 6. Vulnerability management
+
+See `SECURITY.md`. Summary: private disclosure via `security@technomorph.co` or GitHub
+private reporting; acknowledgement within 2 business days; assessment within 10; fix or
+documented mitigation within 90 days, faster for anything exploitable.
+
+**Out of scope:** findings the kit reports about *your* ledger. A red scorecard is a
+defect in the system under test, not a vulnerability in this project.
+
+## 7. Support and continuity
+
+Honest statement of the current position, because bus factor is the standard and fair
+objection to a young open-source project:
+
+- **Today:** maintained by Technomorph Corporation. Response policy in `SECURITY.md`.
+- **Commercial support** with contractual response times is available separately;
+  engagement conduct is governed by a published [publication protocol](docs/publication-protocol.md).
+- **Intended:** contribution to a neutral foundation home once v1.0 has a track record,
+  which would place governance and continuity outside any single maintainer.
+
+`lck-spi` carries a stability guarantee: your adapter will not break on a MINOR or PATCH
+upgrade. New invariants arrive in MINOR releases and *can* turn a build red — use
+`--baseline` to adopt them deliberately.
+
+## 8. Operational profile
+
+| Property | Value |
+|---|---|
+| Runtime | JVM 21 (toolchain); `lck-spi` bytecode targets 17 |
+| Typical run | under 90 seconds for the full suite |
+| Concurrency | up to 500 virtual threads; tune with `--concurrency` |
+| Memory | 2 GB heap is generous |
+| Privileges | none. Runs as an ordinary CI user |
+| Failure mode | non-zero exit equal to the count of BLOCKER regressions |
+
+## 9. What this is not
+
+State these plainly to anyone who might over-read a clean result:
+
+- **Not a certification.** It reports which invariants held, on the system as configured,
+  on the day it ran. There is no grade, no score, no percentage — deliberately.
+- **Not an assurance engagement** and not a regulatory opinion.
+- **Not a test of your accounting model.** It cannot tell you whether your chart of
+  accounts matches your business. No tool can.
+- **Not a security or performance test.**
+
+A clean run is evidence about specific properties. Representing it as more than that
+damages the client and the tool equally.
