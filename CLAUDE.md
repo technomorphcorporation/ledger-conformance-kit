@@ -78,8 +78,8 @@ Required, in this order:
 
 ## Testing conventions
 
-- `./gradlew verify` is the full gate. Use it before saying anything is done. There is no
-  CI yet, so it runs only where someone runs it.
+- `./gradlew verify` is what CI runs, on every push and pull request. Use it before saying
+  anything is done. CI also re-runs the tests on a second seed and runs the demo.
 - `./gradlew demo` runs the suite against both example ledgers. The naive one is
   **supposed** to fail — currently ten invariants, passing three and skipping one. That is a
   fixture, not a regression. Nothing pins the exact set yet, which is why the number drifted

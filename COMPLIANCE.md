@@ -65,13 +65,20 @@ Full inventory: `gradle/libs.versions.toml` — short enough to read in full, wh
   `build.gradle.kts` and true of any build you run today.
 - Gradle wrapper pinned by SHA-256 (`distributionSha256Sum` in
   `gradle/wrapper/gradle-wrapper.properties`), so a swapped distribution fails the build
-  rather than executing.
+  rather than executing. `gradle/actions/wrapper-validation` checks `gradle-wrapper.jar`
+  against Gradle's published checksums on every push, so a jar swapped in a pull request
+  cannot execute in CI.
+- Every push and pull request runs `./gradlew verify` — the full test suite, the mutation
+  corpus and `complianceCheck` — plus a second run on a different seed and the demo against
+  both example ledgers. See `.github/workflows/ci.yml`.
+- Third-party GitHub Actions are pinned to commit SHAs rather than tags. A tag is mutable,
+  and pinning to one would be a supply-chain claim about someone else's repository that this
+  project is in no position to make.
 - Release signing is configured (`signing`, GPG, in-memory key) but no release has been cut.
 
-**Not yet in place, and listed here rather than claimed above:** no CI pipeline, so nothing
-runs `./gradlew verify` except a developer; no published artifacts on Maven Central; no
-CycloneDX SBOM; no Sigstore attestation. These are tracked in `ROADMAP.md` and this section
-will grow as they land.
+**Not yet in place, and listed here rather than claimed above:** no published artifacts on
+Maven Central; no CycloneDX SBOM; no Sigstore attestation. These are tracked in `ROADMAP.md`
+and this section will grow as they land.
 
 ## 6. Vulnerability management
 

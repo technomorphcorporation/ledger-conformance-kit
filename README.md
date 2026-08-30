@@ -153,7 +153,7 @@ which is neither a pass nor a finding.
 A suite has two failure modes, and the second is the one that ends a project's
 credibility: passing a broken ledger, and **failing a correct one**.
 
-Every build runs a mutation check:
+Every push runs a mutation check, and so does every `./gradlew verify`:
 
 1. **No false positives** — all fourteen must pass a known-correct ledger. An invariant
    that fails a correct implementation is a bug in the invariant.
@@ -192,7 +192,8 @@ catch.
   the ledger holds, so this is a deployment property; `AdapterTck` TCK-00 reads the journal
   before anything writes and refuses to continue if it is not already empty
 - Apache-2.0, no copyleft in the tree; reproducible builds; Gradle wrapper pinned by
-  SHA-256. Release signing is configured but nothing has been published yet — see
+  SHA-256 and validated in CI; third-party GitHub Actions pinned to commit SHAs rather than
+  mutable tags. Release signing is configured but nothing has been published yet — see
   COMPLIANCE.md for what is and is not in place
 
 Full detail: [COMPLIANCE.md](COMPLIANCE.md) · [SECURITY.md](SECURITY.md)
