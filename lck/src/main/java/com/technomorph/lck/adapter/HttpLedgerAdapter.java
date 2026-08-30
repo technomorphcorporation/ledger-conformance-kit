@@ -58,19 +58,23 @@ public final class HttpLedgerAdapter implements LedgerAdapter {
     @Override public void reset() throws Exception { send("POST", "/_lck/reset", "{}"); }
 
     @Override public PostResult post(Transaction txn) throws Exception {
+        // Every string goes through Json.quote. Account identifiers are the client's, not ours,
+        // and a quote or a backslash in one used to produce a malformed request that surfaced
+        // as an unexplained ledger error.
         StringBuilder legs = new StringBuilder("[");
         for (int i = 0; i < txn.legs().size(); i++) {
             Leg l = txn.legs().get(i);
             if (i > 0) legs.append(',');
-            legs.append("{\"accountId\":\"").append(l.accountId())
-                .append("\",\"type\":\"").append(l.type())
-                .append("\",\"amountSubunits\":").append(l.amountSubunits())
-                .append(",\"currency\":\"").append(l.currency()).append("\"}");
+            legs.append("{\"accountId\":").append(Json.quote(l.accountId()))
+                .append(",\"type\":").append(Json.quote(l.type().name()))
+                .append(",\"amountSubunits\":").append(l.amountSubunits())
+                .append(",\"currency\":").append(Json.quote(l.currency()))
+                .append('}');
         }
         legs.append(']');
-        String body = "{\"idempotencyKey\":\"" + txn.idempotencyKey()
-                + "\",\"transactionId\":\"" + txn.transactionId()
-                + "\",\"allowOverdraft\":" + txn.allowOverdraft()
+        String body = "{\"idempotencyKey\":" + Json.quote(txn.idempotencyKey())
+                + ",\"transactionId\":" + Json.quote(txn.transactionId())
+                + ",\"allowOverdraft\":" + txn.allowOverdraft()
                 + ",\"legs\":" + legs + "}";
 
         String res = send("POST", "/_lck/post", body);

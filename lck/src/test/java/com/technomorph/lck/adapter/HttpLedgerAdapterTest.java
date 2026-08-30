@@ -2,6 +2,7 @@ package com.technomorph.lck.adapter;
 
 import com.sun.net.httpserver.HttpServer;
 import com.technomorph.lck.spi.Capability;
+import com.technomorph.lck.spi.Model.*;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,7 +13,10 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -97,5 +101,95 @@ class HttpLedgerAdapterTest {
 
         Exception e = assertThrows(Exception.class, () -> http.balance("acct:a", "USD"));
         assertTrue(e.getMessage().contains("minor units"), e::getMessage);
+    }
+
+    // ------------------------------------------------------------ hostile identifiers
+
+    /**
+     * What an internal account key looks like when it is not the sanitised sort this suite
+     * generates for itself. The quote is the one that mattered: it closed the JSON string
+     * early and put every field after it in the wrong place.
+     */
+    private static final String HOSTILE_ACCOUNT = "acct:\"omnibus\"\\EMEA\tdesk-3";
+
+    @Test
+    @DisplayName("an account identifier containing quotes and backslashes produces valid JSON")
+    void hostileIdentifiersAreEscapedInTheRequest() throws Exception {
+        HttpLedgerAdapter http = capturing("{\"status\":\"APPLIED\",\"transactionId\":\"t1\"}");
+
+        http.post(new Transaction(HOSTILE_ACCOUNT + "-key",
+                List.of(Leg.debit(HOSTILE_ACCOUNT, 500), Leg.credit("acct:b", 500)),
+                "txn\"1", true, Map.of()));
+
+        String body = captured.get();
+        assertNotNull(body, "the server received no request");
+        assertBalancedStrings(body);
+        for (int i = 0; i < body.length(); i++)
+            assertTrue(body.charAt(i) >= 0x20,
+                    () -> "raw control character in the request body: " + body);
+        assertTrue(body.contains("acct:\\\"omnibus\\\""),
+                () -> "the quote must be escaped, not passed through: " + body);
+        assertTrue(body.contains("\\\\EMEA\\t"),
+                () -> "backslash and tab must be escaped: " + body);
+        assertTrue(body.contains("\"transactionId\":\"txn\\\"1\""),
+                () -> "the transaction id is a client string too: " + body);
+    }
+
+    @Test
+    @DisplayName("an escaped identifier survives the round trip byte for byte")
+    void hostileIdentifiersSurviveTheResponse() throws Exception {
+        String account = "acct:\\\"omnibus\\\"\\\\EMEA\\tdesk-3";   // as it appears on the wire
+        HttpLedgerAdapter http = capturing("[{\"entryId\":\"e1\",\"transactionId\":\"t1\","
+                + "\"accountId\":\"" + account + "\",\"type\":\"DEBIT\",\"amountSubunits\":500,"
+                + "\"currency\":\"USD\",\"sequence\":1,\"accountSequence\":1,"
+                + "\"prevHash\":\"GENESIS\",\"entryHash\":\"a\\" + "u0041b\"}]");
+
+        List<JournalEntry> journal = http.journal();
+
+        assertEquals(1, journal.size());
+        assertEquals(HOSTILE_ACCOUNT, journal.get(0).accountId(),
+                "reading must honour the escapes we write, or a value is corrupted on the way back");
+        assertEquals("aAb", journal.get(0).entryHash(),
+                "a \\uXXXX escape must be decoded, not spelled out as the letter u");
+    }
+
+    @Test
+    @DisplayName("a null balance is refused with the sentence a decimal gets")
+    void nullBalanceIsRefusedClearly() {
+        HttpLedgerAdapter http = serving(0, 200, "{\"subunits\":null}");
+
+        Exception e = assertThrows(Exception.class, () -> http.balance("acct:a", "USD"));
+        assertTrue(e.getMessage().contains("minor units"),
+                () -> "a NumberFormatException from an empty string tells the reader nothing: "
+                        + e.getMessage());
+    }
+
+    // ------------------------------------------------------------------ plumbing
+
+    private final AtomicReference<String> captured = new AtomicReference<>();
+
+    /** Records the request body it was sent, and answers with {@code response}. */
+    private HttpLedgerAdapter capturing(String response) {
+        server.createContext("/", exchange -> {
+            captured.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] out = response.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, out.length);
+            exchange.getResponseBody().write(out);
+            exchange.close();
+        });
+        server.start();
+        return new HttpLedgerAdapter("http://127.0.0.1:" + server.getAddress().getPort(),
+                EnumSet.noneOf(Capability.class));
+    }
+
+    /** A quote that escaped its own field leaves an odd number of string delimiters behind. */
+    private static void assertBalancedStrings(String json) {
+        boolean inString = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (inString && c == '\\') { i++; continue; }
+            if (c == '"') inString = !inString;
+        }
+        assertFalse(inString, () -> "unterminated string literal in: " + json);
     }
 }
