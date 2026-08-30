@@ -82,6 +82,8 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
         switch (r.status()) {
             case PASS -> { }
             case SKIP -> abort(r.detail());
+            // Abort, not fail: an unreachable ledger says nothing about the ledger.
+            case INFRA -> abort("could not reach the ledger: " + r.detail());
             case FAIL, ERROR -> {
                 if (severityRank(r.severity().name()) <= severityRank(cfg.failOn().name()))
                     fail(r.detail() + System.lineSeparator()

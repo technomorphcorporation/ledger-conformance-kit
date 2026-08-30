@@ -8,6 +8,7 @@ import com.technomorph.lck.spi.Model.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 
 /**
@@ -36,7 +37,13 @@ public final class Invariants {
 
     public enum Severity { BLOCKER, MAJOR, MINOR }
 
-    public enum Status { PASS, FAIL, SKIP, ERROR }
+    /**
+     * INFRA is not a finding. It means the run could not reach the ledger — a dropped
+     * connection, a timeout, a 502 from something in front of it. Reporting that as a defect
+     * in the client's ledger is the fastest way to lose the argument about every other
+     * finding on the page, so it is neither a pass nor a break.
+     */
+    public enum Status { PASS, FAIL, SKIP, ERROR, INFRA }
 
     public record Result(String id, String title, Severity severity, Status status,
                          String detail, String productionSymptom, long seed, long millis) {
@@ -46,6 +53,51 @@ public final class Invariants {
     public record Check(boolean held, String detail) {
         public static Check ok(String d)  { return new Check(true, d); }
         public static Check bad(String d) { return new Check(false, d); }
+    }
+
+    /**
+     * What the ledger said, counted.
+     *
+     * <p>An invariant that submits n transactions and then asserts on n is asserting that the
+     * ledger accepted all of them, which is a throughput claim wearing a correctness costume.
+     * A ledger at SERIALIZABLE isolation returning REJECTED on a write conflict — Postgres
+     * 40001, entirely correct — loses no money, and telling its authors it lost 20.00 ends the
+     * conversation. Assert against what was applied; report the rest as observation.
+     */
+    public static final class Tally {
+        private final AtomicInteger applied = new AtomicInteger();
+        private final AtomicInteger duplicate = new AtomicInteger();
+        private final AtomicInteger rejected = new AtomicInteger();
+        private final AtomicReference<String> firstReason = new AtomicReference<>();
+
+        public PostResult record(PostResult r) {
+            switch (r.status()) {
+                case APPLIED   -> applied.incrementAndGet();
+                case DUPLICATE -> duplicate.incrementAndGet();
+                case REJECTED  -> {
+                    rejected.incrementAndGet();
+                    firstReason.compareAndSet(null, r.reason());
+                }
+            }
+            return r;
+        }
+
+        public int applied()   { return applied.get(); }
+        public int duplicate() { return duplicate.get(); }
+        public int rejected()  { return rejected.get(); }
+
+        /** Empty when everything applied, so it can be appended to a passing message unconditionally. */
+        public String note() {
+            if (rejected.get() == 0 && duplicate.get() == 0) return "";
+            StringBuilder sb = new StringBuilder(" (");
+            if (rejected.get() > 0) {
+                sb.append(rejected.get()).append(" rejected");
+                if (firstReason.get() != null) sb.append(": ").append(firstReason.get());
+            }
+            if (duplicate.get() > 0)
+                sb.append(rejected.get() > 0 ? ", " : "").append(duplicate.get()).append(" duplicate");
+            return sb.append(')').toString();
+        }
     }
 
     @FunctionalInterface
@@ -115,9 +167,15 @@ public final class Invariants {
             } finally {
                 exec.shutdownNow();
             }
-            if (!errors.isEmpty()) {
-                Throwable first = errors.get(0);
-                throw new IllegalStateException(errors.size() + " of " + n
+            List<Throwable> collected;
+            synchronized (errors) { collected = List.copyOf(errors); }
+            if (!collected.isEmpty()) {
+                // An Error raised inside a task belongs to the harness or the JVM, not to the
+                // ledger. Wrapping it would launder an OutOfMemoryError into a BLOCKER finding
+                // against someone else's system, so it leaves unchanged.
+                for (Throwable t : collected) if (t instanceof Error e) throw e;
+                Throwable first = collected.get(0);
+                throw new IllegalStateException(collected.size() + " of " + n
                         + " submissions threw; first was " + first.getClass().getSimpleName()
                         + ": " + first.getMessage(), first);
             }
@@ -211,19 +269,27 @@ public final class Invariants {
         new Invariant("INV-05", "Concurrent duplicates collapse to one", Severity.BLOCKER,
             "A double-clicked button or a load-balanced retry lands twice in the same millisecond.", null,
             (led, h) -> {
+                final int n = 64, amt = 2_500;
                 led.seed("acct:a", 100_000);
-                AtomicInteger applied = new AtomicInteger();
-                h.burst(64, i -> {
+                Tally t = new Tally();
+                h.burst(n, i -> {
                     try {
-                        if (led.post(Transaction.transfer("acct:a", "acct:b", 2_500, "race-key"))
-                                .status() == PostStatus.APPLIED) applied.incrementAndGet();
+                        t.record(led.post(Transaction.transfer("acct:a", "acct:b", amt, "race-key")));
                     } catch (Exception e) { throw new RuntimeException(e); }
                 });
-                long bal = led.balance("acct:b");
-                return applied.get() == 1 && bal == 2_500
-                        ? Check.ok("exactly one of 64 simultaneous submissions applied")
-                        : Check.bad(applied.get() + " of 64 simultaneous submissions applied; balance "
-                                + money(bal) + " (expected 1 and 25.00)");
+                long bal = led.balance("acct:b"), expected = (long) t.applied() * amt;
+                if (t.applied() > 1)
+                    return Check.bad(t.applied() + " of " + n + " submissions of one idempotency key "
+                            + "applied, expected at most 1 — the key was claimed " + t.applied()
+                            + " times, and the customer is charged " + money(bal));
+                if (t.applied() == 0)
+                    return Check.bad("none of " + n + " submissions applied" + t.note()
+                            + " — the key held, but a valid funded transfer was never posted");
+                if (bal != expected)
+                    return Check.bad("1 submission applied but the balance is " + money(bal)
+                            + ", expected " + money(expected));
+                return Check.ok("exactly one of " + n + " simultaneous submissions applied, "
+                        + "balance " + money(bal) + t.note());
             }),
 
         // ----------------------------------------------------------- concurrency
@@ -232,18 +298,26 @@ public final class Invariants {
             "The busiest merchant, wallet or omnibus account is the one that silently loses money.", null,
             (led, h) -> {
                 final int n = 500, amt = 100;
+                Tally t = new Tally();
                 h.burst(n, i -> {
                     try {
-                        led.post(new Transaction("hot-" + i,
+                        t.record(led.post(new Transaction("hot-" + i,
                                 List.of(Leg.debit("external:funding", amt), Leg.credit("acct:hot", amt)),
-                                UUID.randomUUID().toString(), true, Map.of()));
+                                UUID.randomUUID().toString(), true, Map.of())));
                     } catch (Exception e) { throw new RuntimeException(e); }
                 });
-                long bal = led.balance("acct:hot"), expected = (long) n * amt;
-                return bal == expected
-                        ? Check.ok(n + " simultaneous credits, balance exact at " + money(bal))
-                        : Check.bad("balance " + money(bal) + ", expected " + money(expected)
-                                + " — lost " + money(expected - bal));
+                // Against what was applied, not against what was submitted: a refused write posts
+                // nothing and loses nothing, and calling that a lost update is a false finding.
+                long bal = led.balance("acct:hot"), expected = (long) t.applied() * amt;
+                if (bal != expected)
+                    return Check.bad("balance " + money(bal) + " after " + t.applied() + " of " + n
+                            + " credits applied, expected " + money(expected) + " — lost "
+                            + money(expected - bal) + t.note());
+                if (t.applied() == 0)
+                    return Check.bad("none of " + n + " credits applied" + t.note()
+                            + " — nothing was lost because nothing was written");
+                return Check.ok(t.applied() + " of " + n + " simultaneous credits applied, "
+                        + "balance exact at " + money(bal) + t.note());
             }),
 
         new Invariant("INV-07", "Value is conserved under concurrent transfers", Severity.BLOCKER,
@@ -253,17 +327,21 @@ public final class Invariants {
                 for (int i = 0; i < accounts; i++) led.seed("acct:" + i, 10_000);
                 long opening = 0;
                 for (int i = 0; i < accounts; i++) opening += led.balance("acct:" + i);
+                Tally t = new Tally();
                 h.burst(moves, i -> {
                     try {
-                        led.post(Transaction.transfer("acct:" + (i % accounts),
-                                "acct:" + ((i + 3) % accounts), 100, "mv-" + i, true));
+                        t.record(led.post(Transaction.transfer("acct:" + (i % accounts),
+                                "acct:" + ((i + 3) % accounts), 100, "mv-" + i, true)));
                     } catch (Exception e) { throw new RuntimeException(e); }
                 });
+                // Conservation holds whatever the ledger accepted — a rejected transfer moves
+                // nothing — so the applied count is reported, not asserted on.
                 long closing = 0;
                 for (int i = 0; i < accounts; i++) closing += led.balance("acct:" + i);
                 return closing == opening
                         ? Check.ok("total held constant at " + money(closing)
-                                + " across " + moves + " concurrent transfers")
+                                + " across " + t.applied() + " of " + moves
+                                + " concurrent transfers" + t.note())
                         : Check.bad("total drifted " + (closing > opening ? "+" : "")
                                 + money(closing - opening) + " (open " + money(opening)
                                 + " -> close " + money(closing) + ")");
@@ -295,22 +373,40 @@ public final class Invariants {
             "Classic double-spend: twenty withdrawals check the same balance before any of them commits.",
             Capability.OVERDRAFT_GUARD,
             (led, h) -> {
-                led.seed("acct:a", 10_000);
-                AtomicInteger applied = new AtomicInteger();
-                h.burst(20, i -> {
+                final int n = 20, amt = 1_000, opening = 10_000;
+                led.seed("acct:a", opening);
+                Tally t = new Tally();
+                h.burst(n, i -> {
                     try {
-                        if (led.post(Transaction.transfer("acct:a", "acct:b", 1_000, "drain-" + i))
-                                .status() == PostStatus.APPLIED) applied.incrementAndGet();
+                        t.record(led.post(Transaction.transfer("acct:a", "acct:b", amt, "drain-" + i)));
                     } catch (Exception e) { throw new RuntimeException(e); }
                 });
-                long bal = led.balance("acct:a");
+                long bal = led.balance("acct:a"), expected = opening - (long) t.applied() * amt;
+
+                // Safety, then the accounting identity. Deliberately NOT "exactly ten succeeded":
+                // how many a ledger lets through under contention is a throughput property, and a
+                // conservative ledger that applies seven is correct. Only two things must hold —
+                // the account never goes negative, and the balance equals what was applied.
                 if (bal < 0)
-                    return Check.bad("account overdrew to " + money(bal)
-                            + " — the guard was evaluated before the write, not with it");
-                return applied.get() == 10 && bal == 0
-                        ? Check.ok("exactly 10 of 20 withdrawals succeeded; balance floored at 0.00")
-                        : Check.bad(applied.get() + " withdrawals applied, closing balance "
-                                + money(bal) + " (expected 10 and 0.00)");
+                    return Check.bad("account overdrew to " + money(bal) + " after " + t.applied()
+                            + " of " + n + " withdrawals — the guard was evaluated before the "
+                            + "write, not with it");
+                long drawn = (long) t.applied() * amt;
+                if (drawn > opening)
+                    return Check.bad(t.applied() + " of " + n + " withdrawals applied, drawing "
+                            + money(drawn) + " against an opening balance of " + money(opening)
+                            + " — the guard allowed " + money(drawn - opening) + " more than the "
+                            + "account could fund, and the reported balance of " + money(bal)
+                            + " hides it");
+                if (bal != expected)
+                    return Check.bad(t.applied() + " withdrawals applied but the balance is "
+                            + money(bal) + ", expected " + money(expected)
+                            + " — the guard and the ledger disagree by " + money(bal - expected));
+                if (t.applied() == 0)
+                    return Check.bad("none of " + n + " withdrawals applied against a funded "
+                            + "account" + t.note() + " — the guard refused everything");
+                return Check.ok(t.applied() + " of " + n + " withdrawals applied, balance "
+                        + money(bal) + ", never negative" + t.note());
             }),
 
         // --------------------------------------------------------- money algebra
@@ -319,16 +415,25 @@ public final class Invariants {
             "Floating point pennies. The number is right for months and then it isn't, "
             + "and you cannot say when it stopped being right.", null,
             (led, h) -> {
-                led.seed("acct:a", 100_000);
-                for (int i = 0; i < 1000; i++)
-                    led.post(Transaction.transfer("acct:a", "acct:b", 1, "penny-" + i));
+                final int n = 1000, opening = 100_000;
+                led.seed("acct:a", opening);
+                Tally t = new Tally();
+                for (int i = 0; i < n; i++)
+                    t.record(led.post(Transaction.transfer("acct:a", "acct:b", 1, "penny-" + i)));
                 long dst = led.balance("acct:b"), src = led.balance("acct:a");
-                if (dst != 1000)
-                    return Check.bad("after 1000 one-subunit transfers the destination holds "
-                            + dst + " subunits, expected 1000 — drift of " + (1000 - dst));
-                if (src != 99_000)
-                    return Check.bad("source holds " + src + " subunits, expected 99000");
-                return Check.ok("1000 one-subunit transfers, both sides exact");
+                // A rate-limited or conflicted endpoint rejects posts; attributing that to
+                // floating point would be a confident, numeric misdiagnosis.
+                if (t.applied() == 0)
+                    return Check.bad("none of " + n + " one-subunit transfers applied" + t.note());
+                if (dst != t.applied())
+                    return Check.bad("after " + t.applied() + " of " + n + " one-subunit transfers "
+                            + "applied, the destination holds " + dst + " subunits, expected "
+                            + t.applied() + " — drift of " + (t.applied() - dst) + t.note());
+                if (src != opening - t.applied())
+                    return Check.bad("source holds " + src + " subunits, expected "
+                            + (opening - t.applied()) + " after " + t.applied() + " transfers");
+                return Check.ok(t.applied() + " of " + n + " one-subunit transfers applied, "
+                        + "both sides exact" + t.note());
             }),
 
         new Invariant("INV-11", "Currencies cannot be mixed inside one transaction", Severity.MAJOR,
@@ -444,12 +549,42 @@ public final class Invariants {
             return new Result(inv.id(), inv.title(), inv.severity(),
                     c.held() ? Status.PASS : Status.FAIL, c.detail(),
                     inv.productionSymptom(), seed, ms(t0));
+        } catch (Error e) {
+            // OutOfMemoryError in the harness is not a defect in the client's ledger. Let it out.
+            throw e;
         } catch (Throwable t) {
-            // An exception under concurrent load is itself a finding, not a harness bug.
-            return new Result(inv.id(), inv.title(), inv.severity(), Status.ERROR,
-                    t.getClass().getSimpleName() + ": " + t.getMessage(),
-                    inv.productionSymptom(), seed, ms(t0));
+            // An exception from the ledger under concurrent load is itself a finding. An
+            // exception from the network in front of it is not, and the two must not print
+            // the same way.
+            return new Result(inv.id(), inv.title(), inv.severity(),
+                    transportFailure(t) ? Status.INFRA : Status.ERROR,
+                    describe(t), inv.productionSymptom(), seed, ms(t0));
         }
+    }
+
+    /**
+     * True when the run could not reach the ledger, rather than the ledger behaving badly.
+     *
+     * <p>Detected by {@link java.io.IOException} anywhere in the cause chain: it is what the
+     * HTTP adapter raises for a dropped connection or a 5xx, and it is what any adapter over a
+     * socket raises naturally. Business rejection cannot be confused with it, because TCK-04
+     * already refuses an adapter that throws instead of returning REJECTED.
+     */
+    private static boolean transportFailure(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause())
+            if (c instanceof java.io.IOException) return true;
+        return false;
+    }
+
+    /** Rule 5 applies to crashes too: name the frame, so the detail carries a line number. */
+    private static String describe(Throwable t) {
+        Throwable root = t;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String msg = root.getMessage();
+        StackTraceElement[] frames = root.getStackTrace();
+        return root.getClass().getSimpleName()
+                + (msg == null ? "" : ": " + msg)
+                + (frames.length == 0 ? "" : " at " + frames[0]);
     }
 
     public static int blockerFailures(List<Result> results) {

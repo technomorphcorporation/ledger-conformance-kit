@@ -28,12 +28,15 @@ public final class Reports {
         long held = rs.stream().filter(r -> r.status() == Status.PASS).count();
         long broke = rs.stream().filter(Result::broke).count();
         long skipped = rs.stream().filter(r -> r.status() == Status.SKIP).count();
+        long infra = rs.stream().filter(r -> r.status() == Status.INFRA).count();
         long blockers = rs.stream().filter(r -> r.broke() && r.severity() == Severity.BLOCKER).count();
 
         String verdict = broke == 0
                 ? "Clean. " + held + " of " + (held + broke) + " invariants held."
                 : broke + " of " + (held + broke) + " invariants broke"
                   + (blockers > 0 ? ", " + blockers + " of them silently wrong under load." : ".");
+        if (infra > 0)
+            verdict += " " + infra + " could not reach the ledger and are not counted either way.";
 
         StringBuilder rows = new StringBuilder();
         for (Result r : rs) {
@@ -68,6 +71,7 @@ public final class Reports {
                 <div class="tb-row"><span>Held</span><span>%d</span></div>
                 <div class="tb-row"><span>Broke</span><span>%d</span></div>
                 <div class="tb-row"><span>Not applicable</span><span>%d</span></div>
+                <div class="tb-row"><span>Unreachable</span><span>%d</span></div>
                 <div class="tb-row tb-total"><span>Invariants</span><span>%d</span></div>
               </div>
               <div class="verdict %s">%s</div>
@@ -81,7 +85,7 @@ public final class Reports {
             </div></body></html>
             """.formatted(esc(ledgerName), CSS, esc(ledgerName),
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")),
-                seed, rs.size(), held + broke, held, broke, skipped, rs.size(),
+                seed, rs.size(), held + broke, held, broke, skipped, infra, rs.size(),
                 broke == 0 ? "good" : "bad", esc(verdict), rows, seed);
     }
 
@@ -90,7 +94,8 @@ public final class Reports {
     public static String junitXml(List<Result> rs, String ledgerName) {
         long failures = rs.stream().filter(r -> r.status() == Status.FAIL).count();
         long errors = rs.stream().filter(r -> r.status() == Status.ERROR).count();
-        long skipped = rs.stream().filter(r -> r.status() == Status.SKIP).count();
+        long skipped = rs.stream().filter(r -> r.status() == Status.SKIP
+                || r.status() == Status.INFRA).count();
         StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
         sb.append("<testsuite name=\"ledger-conformance\" tests=\"").append(rs.size())
           .append("\" failures=\"").append(failures).append("\" errors=\"").append(errors)
@@ -107,6 +112,10 @@ public final class Reports {
                         .append("\"/>\n  ");
                 case SKIP -> sb.append("\n    <skipped message=\"").append(esc(r.detail()))
                         .append("\"/>\n  ");
+                // Not <error>: CI would show a red build for a dropped connection, which is
+                // how a team learns to stop believing the report.
+                case INFRA -> sb.append("\n    <skipped message=\"could not reach the ledger: ")
+                        .append(esc(r.detail())).append("\"/>\n  ");
                 case PASS -> { }
             }
             sb.append("</testcase>\n");
@@ -228,7 +237,7 @@ public final class Reports {
         .flag{font-family:var(--mono);font-size:10px;letter-spacing:.1em;
           font-weight:600;padding:3px 7px;white-space:nowrap;border:1px solid currentColor}
         .flag.PASS{color:var(--ok)}.flag.FAIL,.flag.ERROR{color:var(--stamp);background:rgba(163,42,31,.07)}
-        .flag.SKIP{color:var(--soft)}
+        .flag.SKIP,.flag.INFRA{color:var(--soft)}
         .sev{font-family:var(--mono);font-size:10px;color:var(--soft)}
         .sev.BLOCKER{color:var(--stamp);font-weight:600}
         footer{padding:22px 34px 30px;font-size:12px;color:var(--soft);border-top:3px double var(--rule)}

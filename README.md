@@ -26,14 +26,16 @@ deliberately ordinary:
 ```
   naive-ledger   seed=42
   INV-04   FAIL   BLOCKER  Duplicate submission is a no-op          replay wrote 2 extra journal entries
-  INV-05   FAIL   BLOCKER  Concurrent duplicates collapse to one    64 of 64 simultaneous submissions applied
-  INV-06   FAIL   BLOCKER  No lost updates on a hot account         balance 3.00, expected 500.00 — lost 497.00
-  INV-08   FAIL   BLOCKER  Balance equals the journal projection    acct:a: read path says 499.50, journal says 400.00
-  INV-09   FAIL   BLOCKER  Overdraft guard holds under a drain      20 withdrawals applied, closing balance 90.00
+  INV-05   FAIL   BLOCKER  Concurrent duplicates collapse to one    64 of 64 submissions of one key applied, expected at most 1
+  INV-06   FAIL   BLOCKER  No lost updates on a hot account         balance 206.00 after 500 of 500 credits applied — lost 294.00
+  INV-07   FAIL   BLOCKER  Value is conserved under transfers       total drifted -3.00 (open 800.00 -> close 797.00)
+  INV-08   FAIL   BLOCKER  Balance equals the journal projection    acct:a: read path says 458.50, journal says 400.00
+  INV-09   FAIL   BLOCKER  Overdraft guard holds under a drain      20 of 20 applied, drawing 200.00 against an opening 100.00
   INV-10   FAIL   BLOCKER  No precision drift over small movements  destination holds 999 subunits, expected 1000
   INV-11   FAIL   MAJOR    Currencies cannot be mixed               a USD debit was allowed to close an EUR credit
-  INV-13   FAIL   MAJOR    State rebuilds from the event log        acct:0: live 170.00 vs rebuilt 200.00
-  held 5 · broke 8 · not applicable 1
+  INV-13   FAIL   MAJOR    State rebuilds from the event log        acct:0: live 209.00 vs rebuilt 200.00
+  INV-14   FAIL   MINOR    Per-account ordering is monotonic        account acct:a has duplicate sequence numbers
+  held 3 · broke 10 · not applicable 1
 ```
 
 It validates double-entry, keeps an append-only journal, and checks for sufficient funds.
@@ -128,7 +130,15 @@ request diff reads as "we fixed INV-06". Delete lines as you fix them.
 | INV-14 | Per-account ordering is monotonic | MINOR |
 
 Invariants requiring a capability your adapter does not declare report **not applicable**,
-never failure. The kit has opinions about correctness, not about your feature set.
+never failure. The kit has opinions about correctness, not about your feature set. Nothing is
+assumed either: the HTTP adapter starts with no capabilities until you pass `--capabilities`,
+so an undeclared feature is a skipped invariant rather than a red one.
+
+A finding is also always measured against what your ledger *applied*, never against what was
+submitted. A ledger that refuses a conflicting write — a serialization failure under
+SERIALIZABLE, say — has lost nothing, and the suite says so rather than reporting the
+shortfall as missing money. A run that cannot reach the ledger at all reports **unreachable**,
+which is neither a pass nor a finding.
 
 ---
 

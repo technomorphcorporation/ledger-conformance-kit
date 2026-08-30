@@ -4,6 +4,7 @@ import com.technomorph.lck.spi.LedgerAdapter;
 import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.Model.*;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -100,7 +101,29 @@ public final class HttpLedgerAdapter implements LedgerAdapter {
         return out;
     }
 
+    /**
+     * Every endpoint here is safe to repeat: reads are reads, {@code /_lck/reset} is idempotent,
+     * and {@code /_lck/post} is idempotent on the key — which is the property the whole kit
+     * exists to test, so relying on it here is fair. So a dropped connection is retried rather
+     * than becoming a BLOCKER on someone's scorecard.
+     */
+    private static final int ATTEMPTS = 3;
+
     private String send(String method, String path, String body) throws Exception {
+        IOException last = null;
+        for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {
+            try {
+                return sendOnce(method, path, body);
+            } catch (IOException e) {
+                last = e;
+                if (attempt < ATTEMPTS) Thread.sleep(50L * attempt);   // linear is enough at this scale
+            }
+        }
+        throw new TransportException(method + " " + path + " failed " + ATTEMPTS
+                + " times, last: " + last.getClass().getSimpleName() + ": " + last.getMessage(), last);
+    }
+
+    private String sendOnce(String method, String path, String body) throws Exception {
         HttpRequest.BodyPublisher pub = body == null
                 ? HttpRequest.BodyPublishers.noBody()
                 : HttpRequest.BodyPublishers.ofString(body);
@@ -109,9 +132,28 @@ public final class HttpLedgerAdapter implements LedgerAdapter {
                 .header("Content-Type", "application/json")
                 .method(method, pub).build();
         HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (r.statusCode() / 100 != 2)
-            throw new IllegalStateException(method + " " + path + " -> " + r.statusCode() + " " + r.body());
-        return r.body();
+        int code = r.statusCode();
+        if (code / 100 == 2) return r.body();
+
+        // 5xx is something in front of the ledger, or the ledger falling over — infrastructure
+        // either way, and retryable. 4xx is the adapter and the kit disagreeing about the
+        // contract, which is a real finding and must not be retried into looking intermittent.
+        if (code / 100 == 5)
+            throw new TransportException(method + " " + path + " -> " + code + " " + trunc(r.body()), null);
+        throw new IllegalStateException(method + " " + path + " -> " + code + " " + trunc(r.body()));
+    }
+
+    private static String trunc(String s) {
+        return s == null ? "" : s.length() <= 300 ? s : s.substring(0, 300) + "...";
+    }
+
+    /**
+     * Extends IOException on purpose: the runner classifies a failure as infrastructure by
+     * looking for IOException in the cause chain, so an adapter written by a client gets the
+     * same treatment for free by letting its own IOExceptions propagate.
+     */
+    static final class TransportException extends IOException {
+        TransportException(String message, Throwable cause) { super(message, cause); }
     }
 
     private static String enc(String s) {

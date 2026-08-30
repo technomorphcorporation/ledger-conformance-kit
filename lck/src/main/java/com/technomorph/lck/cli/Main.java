@@ -34,7 +34,9 @@ public final class Main {
           --baseline <file>       fail only on failures absent from this file
           --write-baseline <file> record today's failures and exit 0
           --out <dir>             write html/json/sarif/junit reports (default build/reports/lck)
-          --capabilities A,B      declare adapter capabilities for the HTTP adapter
+          --capabilities A,B      capabilities the ledger has, for the HTTP adapter. Nothing is
+                                  assumed: undeclared means the invariant reports not applicable.
+                                  One of HASH_CHAIN, OVERDRAFT_GUARD, COMPENSATION, REPLAY
           --quiet                 machine-readable output only
 
         Exit code = number of BLOCKER-severity regressions.
@@ -127,8 +129,13 @@ public final class Main {
             long held = rs.stream().filter(r -> r.status() == Status.PASS).count();
             long broke = rs.stream().filter(Result::broke).count();
             long skip = rs.stream().filter(r -> r.status() == Status.SKIP).count();
-            System.out.printf("  %s%n  held %d · broke %d · not applicable %d%n",
-                    "-".repeat(104), held, broke, skip);
+            long infra = rs.stream().filter(r -> r.status() == Status.INFRA).count();
+            System.out.printf("  %s%n  held %d · broke %d · not applicable %d%s%n",
+                    "-".repeat(104), held, broke, skip,
+                    infra == 0 ? "" : " · unreachable " + infra);
+            if (skip > 0)
+                System.out.printf("  %d invariant(s) not applicable — the adapter declares no "
+                        + "matching capability. Add --capabilities to run them.%n", skip);
         }
         Path dir = Path.of(o.out);
         Files.createDirectories(dir);
@@ -166,7 +173,10 @@ public final class Main {
         String out = "build/reports/lck";
         long seed = 42;
         boolean quiet;
-        java.util.Set<Capability> capabilities = EnumSet.allOf(Capability.class);
+        // Opt in, never assume. Declaring a capability the ledger does not have turns
+        // "not applicable" into a failure, and failing a ledger for lacking a feature is the
+        // fastest way for a tool to be dismissed — see Capability's own javadoc.
+        java.util.Set<Capability> capabilities = EnumSet.noneOf(Capability.class);
 
         static Opts parse(String[] a) {
             Opts o = new Opts();

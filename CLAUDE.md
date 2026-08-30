@@ -28,10 +28,14 @@ Violating any of these is worse than not shipping the change.
    hot path. A `double` in a money position is a bug even if a test passes.
 5. **Every failure message contains a number.** `"lost 498.00 of 500.00"`, not
    `"INV-06 failed"`. A number is a defect report; a boolean is an opinion.
-6. **Every invariant must be reproducible from its seed.** All non-determinism goes
+6. **Assert against what the ledger applied, never against what was submitted.** A refused
+   write posts nothing and loses nothing. Count outcomes with `Invariants.Tally` and report
+   rejections as observation. An invariant that requires every submission to succeed is
+   asserting throughput, not correctness, and will fail a conservative ledger that is right.
+7. **Every invariant must be reproducible from its seed.** All non-determinism goes
    through `Invariants.Harness`. Never call `Math.random()` or `System.nanoTime()` for
    test data.
-7. **A new invariant ships with a mutant.** See below.
+8. **A new invariant ships with a mutant.** See below.
 
 ## Repository map
 
