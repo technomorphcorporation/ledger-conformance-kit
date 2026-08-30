@@ -22,18 +22,39 @@ public final class Model {
     /** Money is a long count of currency minor units. Never double, never BigDecimal on the hot path. */
     public record Leg(String accountId, EntryType type, long amountSubunits, String currency) {
         public Leg {
+            Objects.requireNonNull(accountId, "accountId");
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(currency, "currency");
             if (amountSubunits <= 0)
-                throw new IllegalArgumentException("legs are unsigned; direction is carried by EntryType");
-            Objects.requireNonNull(accountId);
-            Objects.requireNonNull(currency);
+                throw new IllegalArgumentException("legs are unsigned; direction is carried by "
+                        + "EntryType (got " + amountSubunits + " on " + accountId + ")");
         }
         public static Leg debit(String acct, long amt)  { return new Leg(acct, EntryType.DEBIT,  amt, "USD"); }
         public static Leg credit(String acct, long amt) { return new Leg(acct, EntryType.CREDIT, amt, "USD"); }
         public long signed() { return type == EntryType.CREDIT ? amountSubunits : -amountSubunits; }
     }
 
+    /**
+     * A transaction, validated and immutable from the moment it exists.
+     *
+     * <p>Records do not copy their components, so this used to hand out a reference to whatever
+     * list the caller passed and let them keep mutating it afterwards. Nothing in the kit did
+     * that, which is exactly why it would have been someone else's problem: this is the type
+     * clients construct, and it is in the artifact whose public surface is MAJOR-versioned, so
+     * validation is additive today and a breaking change after the first release.
+     */
     public record Transaction(String idempotencyKey, List<Leg> legs, String transactionId,
                               boolean allowOverdraft, Map<String, String> metadata) {
+
+        public Transaction {
+            Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+            Objects.requireNonNull(transactionId, "transactionId");
+            legs = List.copyOf(Objects.requireNonNull(legs, "legs"));          // also rejects null elements
+            metadata = Map.copyOf(Objects.requireNonNull(metadata, "metadata"));
+            if (legs.isEmpty())
+                throw new IllegalArgumentException("a transaction with no legs moves nothing; "
+                        + "key was '" + idempotencyKey + "'");
+        }
 
         public static Transaction transfer(String src, String dst, long amt, String key) {
             return transfer(src, dst, amt, key, false);
@@ -45,9 +66,16 @@ public final class Model {
                     UUID.randomUUID().toString(), overdraft, Map.of());
         }
 
+        /**
+         * Net movement per currency; zero in every currency is what balanced means.
+         *
+         * <p>Sums with {@link Math#addExact}, so an overflow throws rather than wrapping into a
+         * plausible-looking small number. A silent wrap here would make an absurd transaction
+         * look balanced, in the one method whose entire job is deciding whether it is.
+         */
         public Map<String, Long> netByCurrency() {
             Map<String, Long> out = new HashMap<>();
-            for (Leg l : legs) out.merge(l.currency(), l.signed(), Long::sum);
+            for (Leg l : legs) out.merge(l.currency(), l.signed(), Math::addExact);
             return out;
         }
     }

@@ -113,6 +113,10 @@ public final class HttpLedgerAdapter implements LedgerAdapter {
      */
     private static final int ATTEMPTS = 3;
 
+    @Override public void close() {
+        http.close();      // shuts the client's selector and executor down rather than leaking them
+    }
+
     private String send(String method, String path, String body) throws Exception {
         IOException last = null;
         for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {

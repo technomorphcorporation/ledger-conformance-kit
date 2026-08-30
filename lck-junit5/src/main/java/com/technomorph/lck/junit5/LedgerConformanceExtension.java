@@ -41,6 +41,12 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
         LedgerConformance cfg = ctx.getRequiredTestClass().getAnnotation(LedgerConformance.class);
         Suite suite = new Suite(cfg);
 
+        // The adapter is built lazily on first use, so it is closed through the extension store
+        // rather than a try-with-resources: JUnit disposes the store when the class is done,
+        // which is the only point at which every invocation is known to have finished.
+        ctx.getStore(ExtensionContext.Namespace.create(LedgerConformanceExtension.class))
+           .put("suite", (ExtensionContext.Store.CloseableResource) suite::close);
+
         List<TestTemplateInvocationContext> out = new ArrayList<>(Invariants.REGISTRY.size());
         for (Invariant inv : Invariants.REGISTRY)
             out.add(named(inv.id() + " " + inv.title(), () -> suite.execute(inv)));
@@ -68,6 +74,10 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
                         .map(f -> f.id() + " " + f.requirement() + " — " + f.detail())
                         .reduce((x, y) -> x + "; " + y).orElse("unknown");
             adapter = a;
+        }
+
+        synchronized void close() {
+            if (adapter != null) adapter.close();
         }
 
         void execute(Invariant inv) {

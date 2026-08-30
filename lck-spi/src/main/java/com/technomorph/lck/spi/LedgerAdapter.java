@@ -16,7 +16,7 @@ import java.util.UUID;
  * account naming they will never let out of the building. A public no-arg constructor is the
  * only requirement. ({@link java.util.ServiceLoader} discovery is not implemented.)
  */
-public interface LedgerAdapter {
+public interface LedgerAdapter extends AutoCloseable {
 
     String name();
 
@@ -44,6 +44,22 @@ public interface LedgerAdapter {
                 .filter(e -> e.accountId().equals(accountId) && e.currency().equals(currency))
                 .mapToLong(JournalEntry::signed).sum();
     }
+
+    /**
+     * Release whatever the adapter holds — a connection pool, an HTTP client, a session.
+     *
+     * <p>A no-op by default, so no existing adapter has to change. It is here now rather than
+     * when something needs it because this interface is implemented by clients and its public
+     * surface is MAJOR-versioned: adding a method later breaks every adapter in the field,
+     * and a default no-op today costs nobody anything.
+     *
+     * <p>Declares no checked exception, unlike the rest of this interface. Every other method
+     * throws {@code Exception} because a ledger can legitimately fail in ways the caller must
+     * handle; a failure to release a connection pool is not one of them, and
+     * {@code AutoCloseable.close() throws Exception} in a try-with-resources can mask an
+     * interrupt. An adapter whose teardown throws should wrap it.
+     */
+    @Override default void close() { }
 
     default void seed(String accountId, long amount) throws Exception {
         post(new Transaction("seed:" + accountId + ":" + UUID.randomUUID(),

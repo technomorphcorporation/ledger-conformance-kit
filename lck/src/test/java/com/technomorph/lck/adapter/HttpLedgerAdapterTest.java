@@ -103,6 +103,19 @@ class HttpLedgerAdapterTest {
         assertTrue(e.getMessage().contains("minor units"), e::getMessage);
     }
 
+
+    @Test
+    @DisplayName("close releases the HTTP client, and the adapter works in try-with-resources")
+    void closeReleasesTheClient() throws Exception {
+        HttpLedgerAdapter outside;
+        try (HttpLedgerAdapter http = serving(0, 200, "{\"subunits\":700}")) {
+            assertEquals(700, http.balance("acct:a", "USD"));
+            outside = http;
+        }
+        assertThrows(Exception.class, () -> outside.balance("acct:a", "USD"),
+                "a closed client must not keep serving requests from a pool nobody owns");
+    }
+
     // ------------------------------------------------------------ hostile identifiers
 
     /**

@@ -44,15 +44,24 @@ public final class Main {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) { System.out.println(USAGE); System.exit(0); }
-        String cmd = args[0];
         Opts o = Opts.parse(args);
 
-        switch (cmd) {
-            case "demo" -> System.exit(demo(o));
-            case "tck"  -> System.exit(tck(load(o), o));
-            case "run"  -> System.exit(run(load(o), o));
-            default     -> { System.out.println(USAGE); System.exit(2); }
-        }
+        // The exit code is computed before exiting, not inside a try-with-resources: System.exit
+        // does not unwind the stack, so an exit inside the block would skip the adapter's close.
+        int code = switch (args[0]) {
+            case "demo" -> demo(o);
+            case "tck"  -> withAdapter(o, led -> tck(led, o));
+            case "run"  -> withAdapter(o, led -> run(led, o));
+            default     -> { System.out.println(USAGE); yield 2; }
+        };
+        System.exit(code);
+    }
+
+    @FunctionalInterface
+    private interface AdapterTask { int run(LedgerAdapter led) throws Exception; }
+
+    private static int withAdapter(Opts o, AdapterTask task) throws Exception {
+        try (LedgerAdapter led = load(o)) { return task.run(led); }
     }
 
     // ------------------------------------------------------------------ commands
@@ -61,8 +70,9 @@ public final class Main {
         int blockers = 0;
         for (String cls : new String[]{"com.technomorph.lck.examples.ReferenceLedger",
                                        "com.technomorph.lck.examples.NaiveLedger"}) {
-            LedgerAdapter led = instantiate(cls);
-            blockers += report(led, Invariants.run(led, o.seed), o);
+            try (LedgerAdapter led = instantiate(cls)) {
+                blockers += report(led, Invariants.run(led, o.seed), o);
+            }
         }
         return blockers;
     }
