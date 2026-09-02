@@ -4,7 +4,7 @@
 Point it at your ledger. It tells you, in cents, which ones you break.**
 
 [![ci](https://github.com/technomorphcorporation/ledger-conformance-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/technomorphcorporation/ledger-conformance-kit/actions)
-[![Maven Central](https://img.shields.io/maven-central/v/com.technomorphcorporation.lck/lck-spi)](https://central.sonatype.com/artifact/com.technomorphcorporation.lck/lck-spi)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.technomorphcorporation/lck-spi)](https://central.sonatype.com/artifact/io.github.technomorphcorporation/lck-spi)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Most ledger defects survive code review, and they survive your test suite too — because
@@ -49,7 +49,7 @@ You compile against **one artifact with zero dependencies**, targeting **Java 17
 team still on 17 can implement an adapter.
 
 ```kotlin
-testImplementation("com.technomorphcorporation.lck:lck-junit5:1.0.0")
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
 ```
 
 Implement five methods:

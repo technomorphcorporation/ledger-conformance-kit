@@ -5,7 +5,10 @@ plugins {
 }
 
 allprojects {
-    group = "com.technomorphcorporation.lck"
+    // Maven Central verifies that a group id belongs to you. io.github.<org> is verified by
+    // ownership of the GitHub organisation, which avoids requiring a domain nobody owns —
+    // com.technomorphcorporation would have needed technomorphcorporation.com.
+    group = "io.github.technomorphcorporation"
     version = providers.gradleProperty("version").getOrElse("1.0.0-SNAPSHOT")
 }
 
@@ -48,7 +51,10 @@ subprojects {
             attributes(
                 "Implementation-Title" to project.name,
                 "Implementation-Version" to project.version,
-                "Automatic-Module-Name" to "com.technomorphcorporation." + project.name.replace('-', '.')
+                // Matches the root package of each module — com.technomorph.lck.spi, com.technomorph.lck,
+                // com.technomorph.lck.junit5 — rather than the publishing coordinates, so a module
+                // name and the packages inside it agree.
+                "Automatic-Module-Name" to "com.technomorph." + project.name.replace('-', '.')
             )
         }
     }
@@ -97,16 +103,25 @@ tasks.register("complianceCheck") {
     group = "verification"
     description = "Zero runtime dependencies in lck-spi and lck; no telemetry anywhere"
 
+    // Internal modules are identified by being project dependencies, not by a prefix on the
+    // group id. The prefix version silently depended on the publishing coordinates matching the
+    // package names, and broke the moment the group moved to io.github.technomorphcorporation —
+    // a gate that reads a name to decide what is ours is a gate that fails on a rename.
     val deps = listOf("lck-spi", "lck").associateWith { n ->
         project(":$n").configurations.named("runtimeClasspath")
-            .map { c -> c.allDependencies.map { "${it.group}:${it.name}" } }
+            .map { c ->
+                c.allDependencies
+                    .filterNot { it is ProjectDependency }
+                    .map { "${it.group}:${it.name}" }
+            }
     }
     val sources = fileTree(rootDir) { include("*/src/main/java/**/*.java") }
 
     doLast {
-        deps.forEach { (name, p) ->
-            val external = p.get().filterNot { it.startsWith("com.technomorph") }
-            require(external.isEmpty()) { "$name must have zero external runtime deps, found: $external" }
+        deps.forEach { (name, external) ->
+            require(external.get().isEmpty()) {
+                "$name must have zero external runtime deps, found: ${external.get()}"
+            }
         }
         val banned = Regex("""(?i)(analytics|telemetry|posthog|segment\.io|sentry|mixpanel)""")
 
