@@ -8,7 +8,11 @@ package com.technomorph.lck.spi;
  * not about your feature set — a ledger with no overdraft concept is not broken for
  * lacking one, and telling a team otherwise is how a tool gets dismissed.
  *
- * <p>Adding a value here is a MINOR release. Removing one is MAJOR.
+ * <p>Adding a value here is a MINOR release. Removing one is MAJOR — which is the reason
+ * every value below is exercised by an invariant today, and none is reserved for later. A
+ * placeholder buys nothing: because adding is MINOR, a capability can be introduced at the
+ * moment the invariant that needs it exists. Shipping one early only publishes a promise with
+ * no test behind it, and makes it expensive to withdraw if the design changes.
  */
 public enum Capability {
 
@@ -22,11 +26,5 @@ public enum Capability {
     COMPENSATION,
 
     /** Balances can be rebuilt from the journal alone. Enables INV-13. */
-    REPLAY,
-
-    /**
-     * Reserved for v2.1: spending mandates delegated to an autonomous agent.
-     * Not yet exercised by any invariant.
-     */
-    AGENT_MANDATE
+    REPLAY
 }

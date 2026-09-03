@@ -9,8 +9,20 @@ Fourteen invariants, the adapter TCK, the mutation check, ratchet mode, four rep
 formats, the HTTP contract, build-enforced compliance gates. The claim it supports:
 *your ledger held these properties under concurrency, retry and replay, on this date.*
 
-Remaining before tagging: worked Postgres adapter as the second known-correct
-implementation, GitHub Action, `REVIEWERS.md`, OpenAPI spec for the HTTP contract.
+CI runs `verify` on every push and pull request, and a tag builds a signed bundle for the
+Sonatype Central Publisher Portal, staged for a manual publish — see `docs/releasing.md`.
+
+**Remaining before tagging v1.0:**
+
+- A worked Postgres adapter as a second known-correct implementation. The mutation corpus is
+  currently vetted against one reference ledger, and a second would settle whether INV-08 and
+  INV-13 are genuinely distinct or the same assertion at two scales
+- `REVIEWERS.md`, and the `rfcs/` process exercised once for real
+- An OpenAPI spec for the HTTP contract, so a client implements it from a specification rather
+  than from prose
+- The four one-time release prerequisites in `docs/releasing.md` — namespace claimed, signing
+  key generated and published, Portal tokens issued, repository secrets set. Until those exist
+  a tag builds a bundle and cannot upload it
 
 ## v1.1 — adoption
 
@@ -18,10 +30,11 @@ Reduce the only real friction, which is writing the adapter.
 
 - Pre-built adapters for common ledger platforms
 - Adapter generator: `lck new-adapter --kind jdbc|http|jvm`
-- GitHub Action and a GitLab CI template
+- A reusable GitHub Action — `uses: technomorphcorporation/ledger-conformance-kit@v1` — so a
+  consumer runs the suite without writing workflow steps, plus a GitLab CI template. Distinct
+  from this repository's own CI, which already exists
 - Soak mode: `--duration 30m --concurrency 512`, random seed, for the schedules a
   90-second PR run never reaches
-- `REVIEWERS.md` and the `rfcs/` process for new invariants
 
 ## v2.0 — determinism
 
@@ -47,7 +60,10 @@ mandate is INV-09 wearing a different hat.
 - **INV-17** Agent-initiated reversals are compensation, never deletion
 - **INV-18** Delegated authority is traceable from journal entry back to the human mandate
 
-`Capability.AGENT_MANDATE` is already reserved in the SPI so this lands without a MAJOR bump.
+These need a new `Capability`, which is a MINOR release — so it gets added when the invariants
+that need it exist, not before. A constant was reserved in the SPI for exactly this and has
+been removed: because adding is MINOR, reserving bought nothing, and a capability an adapter
+could declare while no invariant exercised it was a promise with no test behind it.
 
 ## Deliberately not on the roadmap
 
