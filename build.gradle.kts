@@ -24,6 +24,7 @@ subprojects {
         // The BYTECODE TARGET is per-module, below.
         toolchain { languageVersion.set(JavaLanguageVersion.of(21)) }
         withSourcesJar()
+        withJavadocJar()      // Maven Central rejects a release without one
     }
 
     dependencies {
@@ -42,6 +43,19 @@ subprojects {
         options.release.set(if (project.name == "lck-spi") 17 else 21)
         options.encoding = "UTF-8"
         options.compilerArgs.addAll(listOf("-Xlint:all", "-Xlint:-this-escape", "-Xlint:-serial"))
+    }
+
+    tasks.withType<Javadoc>().configureEach {
+        // Check that the javadoc we wrote is correct — broken @link targets, malformed HTML —
+        // without demanding the javadoc we deliberately did not write. "-missing" drops the
+        // "no @param for accountId" class of warning: a @param that restates the parameter name
+        // is the documentation equivalent of a comment that restates the code.
+        (options as StandardJavadocDocletOptions).apply {
+            encoding = "UTF-8"
+            addStringOption("Xdoclint:all,-missing", "-quiet")
+        }
+        // No external -links: fetching element-list from docs.oracle.com would make the build
+        // depend on the network, and this one is meant to work air-gapped.
     }
 
     tasks.withType<Jar>().configureEach {
@@ -81,18 +95,40 @@ subprojects {
                         }
                     }
                     developers { developer { id.set("manjulbhakri"); name.set("Manjul Bhakri") } }
-                    scm { url.set("https://github.com/technomorphcorporation/ledger-conformance-kit") }
+                    // Central validates the scm block; connection and developerConnection are
+                    // part of what it checks, not decoration.
+                    scm {
+                        url.set("https://github.com/technomorphcorporation/ledger-conformance-kit")
+                        connection.set("scm:git:https://github.com/technomorphcorporation/ledger-conformance-kit.git")
+                        developerConnection.set("scm:git:ssh://git@github.com/technomorphcorporation/ledger-conformance-kit.git")
+                    }
                 }
             }
         }
     }
 
     configure<SigningExtension> {
-        setRequired({ !version.toString().endsWith("SNAPSHOT") && gradle.taskGraph.hasTask("publish") })
+        // Required exactly when a release bundle is being built. The previous condition looked
+        // for a task literally named "publish", which the bundle path never creates — so a
+        // release would have produced unsigned artifacts and been rejected at the far end.
+        setRequired({
+            !version.toString().endsWith("SNAPSHOT") && gradle.taskGraph.hasTask(":centralBundle")
+        })
         providers.gradleProperty("signingKey").orNull?.let {
             useInMemoryPgpKeys(it, providers.gradleProperty("signingPassword").orNull)
         }
         sign(extensions.getByType<PublishingExtension>().publications["maven"])
+    }
+
+    // A file repository, not a remote one: the Central Publisher Portal takes a single zip
+    // rather than accepting individual deploys, so the "upload" is assembling a directory.
+    configure<PublishingExtension> {
+        repositories {
+            maven {
+                name = "centralBundle"
+                url = uri(rootProject.layout.buildDirectory.dir("central-bundle"))
+            }
+        }
     }
 }
 
@@ -144,6 +180,36 @@ tasks.register("complianceCheck") {
         }
         logger.lifecycle("compliance: zero runtime dependencies, no telemetry, "
                 + "no remote assets in emitted output, reproducible jars")
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Release bundle for the Central Publisher Portal.
+//
+// Deliberately no third-party Gradle plugin. This project asks a reviewer to accept that its
+// artifacts carry no dependencies; adding a publishing plugin with its own transitive tree to
+// the build that produces them would be an odd place to stop caring. What the Portal wants is
+// a zip of a Maven repository directory, which maven-publish already knows how to write.
+// ---------------------------------------------------------------------------
+tasks.register<Zip>("centralBundle") {
+    group = "publishing"
+    description = "Signed, checksummed bundle for upload to central.sonatype.com"
+
+    dependsOn(subprojects.map { "${it.path}:publishMavenPublicationToCentralBundleRepository" })
+
+    from(layout.buildDirectory.dir("central-bundle")) {
+        // The Portal rejects a bundle containing maven-metadata; it maintains that itself.
+        exclude("**/maven-metadata.xml*")
+    }
+    archiveFileName.set("central-bundle-${project.version}.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+
+    doFirst {
+        check(!project.version.toString().endsWith("SNAPSHOT")) {
+            "refusing to bundle ${project.version}: Central takes releases, not snapshots. " +
+            "Pass -Pversion=1.0.0"
+        }
+        delete(layout.buildDirectory.dir("central-bundle"))   // never ship a stale artifact
     }
 }
 

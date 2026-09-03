@@ -74,11 +74,20 @@ Full inventory: `gradle/libs.versions.toml` — short enough to read in full, wh
 - Third-party GitHub Actions are pinned to commit SHAs rather than tags. A tag is mutable,
   and pinning to one would be a supply-chain claim about someone else's repository that this
   project is in no position to make.
-- Release signing is configured (`signing`, GPG, in-memory key) but no release has been cut.
+- Releases are tag-triggered and staged. `.github/workflows/release.yml` runs the full gate,
+  builds a GPG-signed bundle, asserts every artifact and signature is present, and uploads to
+  the Sonatype Central Publisher Portal — where it stops. The final publish is a manual step,
+  because a version on Central cannot be withdrawn and an irreversible action should be a
+  decision rather than a consequence of pushing a tag. See `docs/releasing.md`.
+- No third-party Gradle plugin is used to publish. The bundle is assembled by the built-in
+  `maven-publish` and uploaded with `curl`, so the build that produces a zero-dependency
+  artifact does not itself pull in a dependency tree to do it.
 
-**Not yet in place, and listed here rather than claimed above:** no published artifacts on
-Maven Central; no CycloneDX SBOM; no Sigstore attestation. These are tracked in `ROADMAP.md`
-and this section will grow as they land.
+**Not yet in place, and listed here rather than claimed above:** no release has been cut and
+no artifact has been published, so the signing key, the upload and the Portal's validation are
+all untested — the first release is the first test of them. There is no CycloneDX SBOM and no
+Sigstore attestation. These are tracked in `ROADMAP.md` and this section will grow as they
+land.
 
 ## 6. Vulnerability management
 
