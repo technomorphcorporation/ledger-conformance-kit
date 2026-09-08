@@ -77,8 +77,13 @@ Then one annotation:
 class LedgerConformanceTest extends ConformanceTests { }
 ```
 
-Fourteen ordinary JUnit tests appear, named by invariant. Your existing CI reporting,
-flaky-test history and IDE integration all work with no further wiring.
+Fifteen ordinary JUnit tests appear: one `adapter TCK` check, then fourteen named by
+invariant. Your existing CI reporting, flaky-test history and IDE integration all work with no
+further wiring.
+
+If `adapter TCK` fails, the invariants are skipped and its message lists exactly what to fix.
+An adapter that reports balances in the wrong unit produces a plausible-looking scorecard that
+is entirely the adapter's fault, so the suite refuses to produce one.
 
 **Not on the JVM?** Expose four test-only HTTP endpoints and run the same suite — about 80
 lines in any language. See [`docs/adapter-guide.md`](docs/adapter-guide.md).

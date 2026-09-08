@@ -69,8 +69,13 @@ Then one annotation. Note `extends`: `ConformanceTests` is an abstract class hol
 class LedgerConformanceTest extends ConformanceTests { }
 ```
 
-Fourteen ordinary JUnit tests appear, named by invariant. Existing CI reporting, flaky-test
-history and IDE integration all work with no further wiring.
+Fifteen ordinary JUnit tests appear: one `adapter TCK` check, then fourteen named by
+invariant. Existing CI reporting, flaky-test history and IDE integration all work with no
+further wiring.
+
+Start with a stub and `adapter TCK` fails, listing what is missing — `balance()` in minor
+units, a journal that grows, both legs recorded. The invariants are skipped while it does,
+because a scorecard from an adapter nobody can trust is worse than no scorecard.
 
 **Not on the JVM?** Expose four test-only HTTP endpoints and run the same suite against them —
 about 80 lines in any language, and no Java to write. See
