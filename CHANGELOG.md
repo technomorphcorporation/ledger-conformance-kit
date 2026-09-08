@@ -8,6 +8,15 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   build red**; use `--baseline` to adopt deliberately.
 - **PATCH** — fixes to existing invariants, reporting, documentation.
 
+## [Unreleased]
+
+### Documentation
+- INV-15 is now cited in the documents that describe the rule it enforces. `01-core-topics`
+  states the three-state idempotency rule and cited only INV-04 and INV-05, neither of which
+  can see it — both fund the account first, so the transaction under test always succeeds.
+  `02-architectures` shows the code that gets it right; `adapter-guide` now maps every
+  capability to the invariants it unlocks.
+
 ## [1.1.0] — 2026-09-09
 
 ### Added
