@@ -6,6 +6,7 @@ Point it at your ledger. It tells you, in cents, which ones you break.**
 [![ci](https://github.com/technomorphcorporation/ledger-conformance-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/technomorphcorporation/ledger-conformance-kit/actions)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.technomorphcorporation/lck-spi)](https://central.sonatype.com/artifact/io.github.technomorphcorporation/lck-spi)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![docs](https://img.shields.io/badge/docs-technomorphcorporation.github.io-informational)](https://technomorphcorporation.github.io/ledger-conformance-kit/)
 
 Most ledger defects survive code review, and they survive your test suite too — because
 your test suite calls each method once, and these defects only exist under concurrency,
@@ -215,11 +216,18 @@ must not be represented as one.
 
 ## Documentation
 
+Published as a site at
+**[technomorphcorporation.github.io/ledger-conformance-kit](https://technomorphcorporation.github.io/ledger-conformance-kit/)**,
+served from `docs/` on `main` — so a page is versioned with the code it describes, reviewed in
+the same pull request, and gated by the same build. The files below are the same content and
+read equally well here.
+
 - [`docs/adapter-guide.md`](docs/adapter-guide.md) — three routes in, and the five traps
 - [`docs/http-adapter.md`](docs/http-adapter.md) — the language-agnostic contract
 - [`docs/01-core-topics.md`](docs/01-core-topics.md) — hot-account concurrency, idempotency,
   event sourcing, sagas, money arithmetic, reconciliation
 - [`docs/02-architectures.md`](docs/02-architectures.md) — three reference designs with DDL
+- [`docs/releasing.md`](docs/releasing.md) — how a version is cut, and what is checked first
 - [`CLAUDE.md`](CLAUDE.md) · [`ROADMAP.md`](ROADMAP.md) · [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---
