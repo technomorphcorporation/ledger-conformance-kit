@@ -119,7 +119,7 @@ public final class Mutants {
         @Override public PostResult post(Transaction t) {
             if (seen.contains(t.idempotencyKey()))          // read ...
                 return PostResult.duplicate(t.transactionId());
-            Thread.yield();                                  // ... window ...
+            window();                                        // ... window ...
             seen.add(t.idempotencyKey());                    // ... write
             return delegate.post(strip(t));
         }
@@ -140,7 +140,7 @@ public final class Mutants {
                     if (l.accountId().startsWith("acct:hot")) {
                         long[] cell = unsafe.computeIfAbsent(l.accountId(), k -> new long[1]);
                         long cur = cell[0];
-                        Thread.yield();
+                        window();
                         cell[0] = cur + l.signed();
                     }
             return r;
@@ -158,7 +158,7 @@ public final class Mutants {
                 if (l.type() == EntryType.DEBIT && !t.allowOverdraft()
                         && delegate.balance(l.accountId(), l.currency()) < l.amountSubunits())
                     return PostResult.rejected(t.transactionId(), "insufficient funds");
-            Thread.yield();
+            window();
             return delegate.post(new Transaction(t.idempotencyKey(), t.legs(),
                     t.transactionId(), true, t.metadata()));   // guard already "done"
         }
@@ -361,6 +361,30 @@ public final class Mutants {
     }
 
     // ---------------------------------------------------------------- plumbing
+
+    /**
+     * Holds a defect's window open long enough to be observed.
+     *
+     * <p>These three mutants inject check-then-act races, and used {@code Thread.yield()} to
+     * separate the check from the act — which leaves whether the race happens to the scheduler.
+     * On a two-core CI runner the scheduler declined: M-01's duplicate submissions serialised,
+     * INV-05 saw exactly one applied, the defect went undetected and a documentation-only pull
+     * request failed the build.
+     *
+     * <p>A mutant's job is to present its defect <em>reliably</em>, not realistically. Sleeping
+     * unmounts a virtual thread, so every task released from a burst enters the window whatever
+     * the core count, and the mutant becomes evidence rather than a coin toss. A millisecond is
+     * three orders of magnitude more than the microseconds it takes sixty-four tasks to reach
+     * the check, so the margin does not depend on the machine.
+     */
+    private static void window() {
+        try {
+            Thread.sleep(1);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted inside an injected defect window", e);
+        }
+    }
 
     static Transaction strip(Transaction t) {
         return new Transaction(UUID.randomUUID().toString(), t.legs(),
