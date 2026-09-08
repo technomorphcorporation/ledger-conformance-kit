@@ -106,6 +106,17 @@ class PostgresConformanceTest {
                 "if this now fails, the accidental serialisation on external:funding has gone "
                         + "and the comment above needs revisiting rather than the assertion");
 
+        // INV-15 passes, and for a reason worth stating rather than leaving to be rediscovered.
+        // It fails a ledger whose idempotency record collapses IN_FLIGHT into COMMITTED — one
+        // that answers "already applied" for a transaction still in flight, which is then
+        // refused. This ledger has no idempotency record at all beyond a table with no
+        // constraint, so it never answers DUPLICATE and has nothing to collapse. INV-04 and
+        // INV-05 are what catch that; INV-15 is aimed at the ledger that has tried and stopped
+        // one state short.
+        assertFalse(broke.contains("INV-15"),
+                "a ledger with no idempotency cannot exhibit the two-state bug; INV-04 and "
+                        + "INV-05 are the ones that catch having none");
+
         // INV-07 and INV-13 deadlock here — this ledger applies legs in whatever order the
         // transaction lists them, with no total order over accounts. Deliberately not asserted:
         // whether a deadlock is detected is timing, and a flaky assertion in the example that
@@ -128,6 +139,14 @@ class PostgresConformanceTest {
                 .map(r -> r.id() + " — " + r.detail()).toList();
         assertTrue(failed.isEmpty(), () ->
                 "the corrected ledger must hold every invariant that applies to it: " + failed);
+
+        // Named rather than merely covered by the blanket assertion above: INV-15 is the check
+        // for the third state, and the three-state idempotency record is one of the four fixes
+        // this ledger exists to demonstrate. If it ever regresses, the failure should say which
+        // fix stopped working.
+        assertEquals(Status.PASS,
+                rs.stream().filter(r -> r.id().equals("INV-15")).findFirst().orElseThrow().status(),
+                "the three-state idempotency record is what INV-15 checks");
     }
 
     private static Set<String> broke(List<Result> rs) {

@@ -109,6 +109,7 @@ if (claimed == 0) {
     if (existing.state() == COMMITTED) return existing.response();   // replay the original
     if (!existing.requestHash().equals(requestHash)) throw new PayloadMismatch();
     throw new InFlight();          // 409, client retries with backoff. Never a fake 200.
+                                   // INV-15 fails a ledger that returns 200 here.
 }
 ```
 
