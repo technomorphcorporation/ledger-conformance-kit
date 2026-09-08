@@ -47,7 +47,10 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
         ctx.getStore(ExtensionContext.Namespace.create(LedgerConformanceExtension.class))
            .put("suite", (ExtensionContext.Store.CloseableResource) suite::close);
 
-        List<TestTemplateInvocationContext> out = new ArrayList<>(Invariants.REGISTRY.size());
+        List<TestTemplateInvocationContext> out = new ArrayList<>(Invariants.REGISTRY.size() + 1);
+        // First, and always present. When the adapter is conformant this passes and shows the
+        // check ran; when it is not, this is where the reason appears.
+        out.add(named("adapter TCK", suite::requireConformantAdapter));
         for (Invariant inv : Invariants.REGISTRY)
             out.add(named(inv.id() + " " + inv.title(), () -> suite.execute(inv)));
         return out.stream();
@@ -71,8 +74,9 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
             List<AdapterTck.Finding> tck = AdapterTck.verify(a);
             if (!AdapterTck.trustworthy(tck))
                 tckFailure = tck.stream().filter(f -> !f.ok())
-                        .map(f -> f.id() + " " + f.requirement() + " — " + f.detail())
-                        .reduce((x, y) -> x + "; " + y).orElse("unknown");
+                        .map(f -> "  " + f.id() + "  " + f.requirement() + System.lineSeparator()
+                                + "          " + f.detail())
+                        .reduce((x, y) -> x + System.lineSeparator() + y).orElse("unknown");
             adapter = a;
         }
 
@@ -80,10 +84,34 @@ public final class LedgerConformanceExtension implements TestTemplateInvocationC
             if (adapter != null) adapter.close();
         }
 
+        /**
+         * Fails, rather than aborting, when the adapter does not satisfy the TCK.
+         *
+         * <p>An adapter that reports a balance in the wrong unit or a journal that does not grow
+         * is a defect in the adapter, and a defect is a failure. The suppression rule is about
+         * not publishing <em>invariant</em> results from an adapter nobody can trust; it was
+         * never a reason to say nothing at all.
+         *
+         * <p>It said nothing at all. Every invariant aborted, and JUnit's abort message is
+         * dropped by at least one common runner, so the six findings explaining exactly what
+         * was wrong reached nobody — the first thing a client saw on their first run was
+         * fourteen ignored tests and no reason anywhere in the output.
+         */
+        void requireConformantAdapter() {
+            ensureVerified();
+            if (tckFailure != null)
+                fail("the adapter does not satisfy the TCK, so no invariant result from it could "
+                        + "be trusted. Fix these first:" + System.lineSeparator()
+                        + System.lineSeparator() + tckFailure + System.lineSeparator()
+                        + System.lineSeparator()
+                        + "The remaining tests are skipped for this reason, not because the "
+                        + "invariants passed.");
+        }
+
         void execute(Invariant inv) {
             ensureVerified();
             if (tckFailure != null)
-                abort("adapter is not conformant, results suppressed: " + tckFailure);
+                abort("suppressed: the adapter failed the TCK — see the 'adapter TCK' test");
             assertHeld(Invariants.runOne(adapter, inv, cfg.seed()), cfg);
         }
     }
