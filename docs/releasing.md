@@ -84,11 +84,16 @@ Settings → Secrets and variables → Actions:
 
 ## Cutting a release
 
+`main` is protected: it takes no direct pushes, from anyone, and a merge needs the `verify`
+check green. **Tags are not affected** — branch protection governs branches — so the release
+itself is still two commands.
+
 ```bash
-# 1. Rehearse. Builds and signs, checks the bundle, uploads nothing.
+# 1. Rehearse against the commit you intend to tag. Builds and signs, checks the
+#    bundle, uploads nothing.
 gh workflow run release.yml -f version=1.0.0
 
-# 2. Tag and push.
+# 2. Tag and push. This is a tag, not a branch, so it goes straight up.
 git tag -a v1.0.0 -m "1.0.0"
 git push origin v1.0.0
 
@@ -99,13 +104,26 @@ The dry run is worth doing the first time. It exercises signing, the bundle layo
 completeness check without touching Central, which is the half of the process that cannot be
 undone if it is wrong.
 
+Tag the commit you rehearsed, not whatever `main` has drifted to since. The dry run proves a
+specific tree builds and signs; a tag on a later commit is a different tree and an untested
+one.
+
 ## After the release
 
-Bump the development version in `gradle.properties`:
+Bump the development version in `gradle.properties`. This is a change to `main`, so it goes
+through a pull request like any other:
 
-```properties
-version=1.0.2-SNAPSHOT
+```bash
+git switch -c chore/bump-to-1.0.2-SNAPSHOT
+# edit gradle.properties: version=1.0.2-SNAPSHOT
+git commit -am "Bump the development version past 1.0.1"
+git push -u origin chore/bump-to-1.0.2-SNAPSHOT
+gh pr create --fill
+gh pr merge --squash --auto      # lands itself when verify goes green
 ```
+
+`--auto` queues the merge behind the check rather than making you watch a run. Nothing else
+about the bump changes; it is the same one-line edit it always was.
 
 The tag is what a release is built from, so this is not a value to keep in step with anything
 — it is what local and CI builds produce *between* releases, and it has to sit above the last
@@ -116,6 +134,11 @@ someone is bisecting a report.
 Bump to the lowest plausible next version. Raise it to a MINOR when a feature actually lands:
 a new invariant in a MINOR can turn a client's build red, so that belongs in a decision rather
 than in a default.
+
+Because the bump lands after the tag, `main` briefly carries a development version equal to
+the release that was just cut. That window is harmless — nothing is built from `main` during
+it — but it is why the bump is a step in this document rather than something to get to
+eventually.
 
 ## What the bundle contains
 
