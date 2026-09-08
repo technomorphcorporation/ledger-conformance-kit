@@ -35,7 +35,7 @@ Two failure modes govern everything here, and the second is worse:
 
 ```bash
 ./gradlew verify        # build, tests, mutation check, compliance gates
-./gradlew demo          # reference holds 14, naive breaks 8 — a fixture, not a regression
+./gradlew demo          # reference holds all, naive breaks ten — a fixture, not a regression
 ```
 
 ## Licence

@@ -1,6 +1,6 @@
 # Ledger Conformance Kit
 
-**Fourteen executable invariants that any system moving money is expected to hold.
+**Fifteen executable invariants that any system moving money is expected to hold.
 Point it at your ledger. It tells you, in cents, which ones you break.**
 
 [![ci](https://github.com/technomorphcorporation/ledger-conformance-kit/actions/workflows/ci.yml/badge.svg)](https://github.com/technomorphcorporation/ledger-conformance-kit/actions)
@@ -21,7 +21,7 @@ git clone https://github.com/technomorphcorporation/ledger-conformance-kit
 cd ledger-conformance-kit && ./gradlew demo
 ```
 
-Two bundled ledgers. The reference implementation holds all fourteen. The other is
+Two bundled ledgers. The reference implementation holds all fifteen. The other is
 deliberately ordinary:
 
 ```
@@ -77,7 +77,7 @@ Then one annotation:
 class LedgerConformanceTest extends ConformanceTests { }
 ```
 
-Fifteen ordinary JUnit tests appear: one `adapter TCK` check, then fourteen named by
+Sixteen ordinary JUnit tests appear: one `adapter TCK` check, then fifteen named by
 invariant. Your existing CI reporting, flaky-test history and IDE integration all work with no
 further wiring.
 
@@ -120,7 +120,7 @@ request diff reads as "we fixed INV-06". Delete lines as you fix them.
 
 ---
 
-## The fourteen invariants
+## The fifteen invariants
 
 | Ref | Invariant | Severity |
 |---|---|---|
@@ -138,6 +138,7 @@ request diff reads as "we fixed INV-06". Delete lines as you fix them.
 | INV-12 | Reversal is compensation, never deletion | MAJOR |
 | INV-13 | State rebuilds exactly from the event log | MAJOR |
 | INV-14 | Per-account ordering is monotonic | MINOR |
+| INV-15 | A duplicate of a refused transaction is not reported as applied | BLOCKER |
 
 Invariants requiring a capability your adapter does not declare report **not applicable**,
 never failure. The kit has opinions about correctness, not about your feature set. Nothing is
@@ -165,7 +166,7 @@ credibility: passing a broken ledger, and **failing a correct one**.
 
 Every push runs a mutation check, and so does every `./gradlew verify`:
 
-1. **No false positives** — all fourteen must pass a known-correct ledger. An invariant
+1. **No false positives** — every one must pass a known-correct ledger. An invariant
    that fails a correct implementation is a bug in the invariant.
 2. **No false negatives** — a corpus of mutants, each the reference ledger with one
    injected defect, must each trip their named invariant.
