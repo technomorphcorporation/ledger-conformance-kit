@@ -71,6 +71,8 @@ Full inventory: `gradle/libs.versions.toml` — short enough to read in full, wh
 - Every push and pull request runs `./gradlew verify` — the full test suite, the mutation
   corpus and `complianceCheck` — plus a second run on a different seed and the demo against
   both example ledgers. See `.github/workflows/ci.yml`.
+- A worked PostgreSQL example runs separately, on `main` and nightly, because it needs Docker
+  and takes minutes. It is not a merge gate. See `.github/workflows/postgres.yml`.
 - Third-party GitHub Actions are pinned to commit SHAs rather than tags. A tag is mutable,
   and pinning to one would be a supply-chain claim about someone else's repository that this
   project is in no position to make.

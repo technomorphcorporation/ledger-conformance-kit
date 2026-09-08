@@ -36,7 +36,12 @@ Two failure modes govern everything here, and the second is worse:
 ```bash
 ./gradlew verify        # build, tests, mutation check, compliance gates
 ./gradlew demo          # reference holds all, naive breaks ten — a fixture, not a regression
+./gradlew dockerTest    # the Postgres example. Needs Docker; skips cleanly without it
 ```
+
+`dockerTest` is not part of `verify`, because it needs Docker and takes minutes. It runs on
+`main` and nightly. If you touch the invariants or the Postgres example, run it before opening
+the pull request — otherwise you will find out after your change has merged.
 
 ## Licence
 

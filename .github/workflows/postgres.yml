@@ -1,0 +1,73 @@
+# The worked Postgres example, split out of `verify`.
+#
+# It needs Docker and takes minutes, and verify runs on every push and pull request, where
+# minutes are the difference between a check people wait for and one they learn to ignore.
+#
+# The cost of splitting it is stated rather than hidden: this is NOT a required check, so a
+# pull request can merge and break it. That is the trade — a fast gate on every change, and
+# this running on main straight after the merge, nightly, and on demand. If it goes red, it
+# goes red on main within minutes of the commit that did it, with the commit named.
+name: postgres
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * *'      # nightly, so a break surfaces even in a quiet week
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961   # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Validate the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@0723195856401067f7a2779048b490ace7a47d7c   # v5
+
+      - name: Run the Postgres example
+        run: ./gradlew dockerTest --no-daemon --stacktrace
+
+      # A green tick is not evidence the example ran: without Docker these tests skip, and
+      # skipping is correct on a contributor's laptop and meaningless here. The runner has
+      # Docker, so on CI they must actually execute.
+      - name: Assert the example actually ran
+        run: |
+          set -euo pipefail
+          REPORT=$(find lck/build/test-results -name '*PostgresConformanceTest*.xml' | head -1)
+          test -n "$REPORT" || { echo "::error::no test report — the example did not run at all"; exit 1; }
+          python3 - "$REPORT" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          r = ET.parse(sys.argv[1]).getroot()
+          tests, skipped = int(r.get('tests')), int(r.get('skipped'))
+          print(f"tests={tests} skipped={skipped} failures={r.get('failures')}")
+          if tests == 0:
+              sys.exit("::error::the report contains no tests")
+          if skipped == tests:
+              sys.exit("::error::every test skipped — Docker was unavailable on a runner that "
+                       "has it, so this run verified nothing despite passing")
+          PY
+
+      - name: Upload the before-and-after comparison
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4   # v5
+        with:
+          name: postgres-conformance
+          path: lck/build/reports/lck/
+          retention-days: 30
