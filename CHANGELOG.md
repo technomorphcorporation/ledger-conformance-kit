@@ -8,7 +8,7 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   build red**; use `--baseline` to adopt deliberately.
 - **PATCH** — fixes to existing invariants, reporting, documentation.
 
-## [Unreleased] — 1.1.0
+## [1.1.0] — 2026-09-09
 
 ### Added
 - **INV-15** — a duplicate of a refused transaction is not reported as applied. A ledger
@@ -25,11 +25,29 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   which has no isolation level at all. Test-only: the published jars still carry no
   dependencies. Skips rather than fails without Docker.
 
+### Changed
+- **The JUnit integration now reports sixteen tests, not fourteen** — an `adapter TCK` check
+  followed by fifteen invariants. If you assert on a test count or watch one on a dashboard,
+  this is the release that changes it.
+- `complianceCheck` asserts the `api` chain that makes the documented one-coordinate install
+  work. Adding `lck-junit5` brings `lck-spi` with it, and the build now fails if a future edit
+  turns that `api` into `implementation` and quietly breaks every consumer's compile.
+
 ### Fixed
 - The JUnit integration reported a failed adapter TCK by aborting all invariants, and the
   abort message is dropped by at least one common runner — so a non-conformant adapter
   produced ignored tests and no reason anywhere in the output. There is now an `adapter TCK`
   test that fails, listing every finding.
+
+### Documentation
+- Published as a site at
+  [technomorphcorporation.github.io/ledger-conformance-kit](https://technomorphcorporation.github.io/ledger-conformance-kit/),
+  served from `docs/` on `main`, so a page is versioned with the code it describes and reviewed
+  in the same pull request.
+- The install instructions said which artifact to add but not where the adapter goes. An
+  adapter in `src/main` did not compile against a single `lck-junit5` dependency; it belongs in
+  the test source set, and now says so — `reset()` empties the ledger, and code that can
+  truncate a schema has no business on a production classpath.
 
 ## [1.0.0] — 2026-09-08
 

@@ -22,7 +22,7 @@ INV-06   FAIL   BLOCKER  No lost updates on a hot account
 
 ```kotlin
 // Gradle
-testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.1.0")
 ```
 
 ```xml
@@ -30,7 +30,7 @@ testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
 <dependency>
   <groupId>io.github.technomorphcorporation</groupId>
   <artifactId>lck-junit5</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <scope>test</scope>
 </dependency>
 ```

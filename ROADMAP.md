@@ -3,7 +3,7 @@
 Each version is a complete, useful thing. The rule is that nothing from a later version
 gets smuggled into an earlier one — see `CLAUDE.md`.
 
-## v1.0 — evidence (current)
+## v1.0 — evidence (released 8 September 2026)
 
 Fifteen invariants, the adapter TCK, the mutation check, ratchet mode, four report
 formats, the HTTP contract, build-enforced compliance gates. The claim it supports:
@@ -12,17 +12,20 @@ formats, the HTTP contract, build-enforced compliance gates. The claim it suppor
 CI runs `verify` on every push and pull request, and a tag builds a signed bundle for the
 Sonatype Central Publisher Portal, staged for a manual publish — see `docs/releasing.md`.
 
-**Remaining before tagging v1.0:**
+Published to Maven Central as `io.github.technomorphcorporation`. Since then: a worked
+PostgreSQL example — the same ledger wrong and then right, run against a real database, because
+the fixes are database behaviour that an in-memory structure cannot exhibit — and the `rfcs/`
+process exercised for real by INV-15.
 
-- A worked Postgres adapter as a second known-correct implementation. The mutation corpus is
-  currently vetted against one reference ledger, and a second would settle whether INV-08 and
-  INV-13 are genuinely distinct or the same assertion at two scales
-- `REVIEWERS.md`, and the `rfcs/` process exercised once for real
+**Still outstanding, and deliberately not gates:**
+
+- `REVIEWERS.md`
 - An OpenAPI spec for the HTTP contract, so a client implements it from a specification rather
   than from prose
-- The four one-time release prerequisites in `docs/releasing.md` — namespace claimed, signing
-  key generated and published, Portal tokens issued, repository secrets set. Until those exist
-  a tag builds a bundle and cannot upload it
+- A second *known-correct* implementation for the mutation corpus to be vetted against. The
+  Postgres example is a demonstration rather than a second reference: its correct half holds
+  every invariant, but the corpus is still checked against one ledger, so whether INV-08 and
+  INV-13 are genuinely distinct or the same assertion at two scales remains open
 
 ## v1.1 — adoption
 
