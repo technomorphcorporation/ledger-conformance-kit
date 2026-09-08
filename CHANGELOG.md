@@ -18,6 +18,13 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   real defect that silently loses payments, and every existing invariant passes a ledger that
   has it. See `rfcs/0001`. Adopt with `--baseline` if you need to.
 
+- A worked PostgreSQL example, the same ledger wrong and then right, run against a real
+  database with Testcontainers. The article's three fixes — a unique constraint rather than a
+  query, the sufficient-funds predicate inside the `UPDATE`, and a three-state idempotency
+  record — are database behaviour and cannot be demonstrated against an in-memory structure,
+  which has no isolation level at all. Test-only: the published jars still carry no
+  dependencies. Skips rather than fails without Docker.
+
 ### Fixed
 - The JUnit integration reported a failed adapter TCK by aborting all invariants, and the
   abort message is dropped by at least one common runner — so a non-conformant adapter

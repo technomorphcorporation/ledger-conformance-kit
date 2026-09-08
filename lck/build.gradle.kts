@@ -4,6 +4,12 @@ dependencies {
     api(project(":lck-spi"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.junit.jupiter.params)
+
+    // The worked Postgres example. Test-only: the published jars carry no dependencies, and
+    // complianceCheck fails the build if that stops being true.
+    testImplementation(libs.testcontainers.postgres)
+    testImplementation(libs.testcontainers.junit)
+    testImplementation(libs.postgresql.driver)
 }
 
 application {
