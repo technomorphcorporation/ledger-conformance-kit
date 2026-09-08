@@ -55,7 +55,7 @@ jobs:
           fi
           case "$VERSION" in
             *-SNAPSHOT) echo "::error::refusing to release a SNAPSHOT ($VERSION)"; exit 1 ;;
-            ""|v*)      echo "::error::could not resolve a version from '$GITHUB_REF_NAME'"; exit 1 ;;
+            ""|v*)      echo "::error::not a usable version: '$VERSION' (expected e.g. 1.0.0)"; exit 1 ;;
           esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Releasing $VERSION"
@@ -105,19 +105,43 @@ jobs:
       # Portal with a message that takes a while to interpret.
       - name: Check the bundle is complete
         run: |
+          set -euo pipefail
           BUNDLE="build/distributions/central-bundle-${{ steps.v.outputs.version }}.zip"
           test -f "$BUNDLE" || { echo "::error::no bundle at $BUNDLE"; exit 1; }
-          unzip -l "$BUNDLE" | awk '{print $4}' | grep -v '^$' > /tmp/files.txt
-          echo "bundle contains $(wc -l < /tmp/files.txt) files"
+
+          # -Z1 lists entry names only: no header, no totals, nothing to filter out.
+          unzip -Z1 "$BUNDLE" > /tmp/entries.txt
+          awk -F/ '{print $NF}' /tmp/entries.txt | sort -u > /tmp/names.txt
+          echo "bundle contains $(wc -l < /tmp/entries.txt) files"
+          test -s /tmp/entries.txt || { echo "::error::the bundle is empty"; exit 1; }
+
+          # Every module publishes four artifacts. A missing javadoc jar is the one Central
+          # rejects that nothing else would notice.
           for module in lck-spi lck lck-junit5; do
             for suffix in ".jar" "-sources.jar" "-javadoc.jar" ".pom"; do
               f="$module-${{ steps.v.outputs.version }}$suffix"
-              grep -q "/$f$"     /tmp/files.txt || { echo "::error::missing $f"; exit 1; }
-              grep -q "/$f.asc$" /tmp/files.txt || { echo "::error::missing signature for $f"; exit 1; }
+              grep -qxF "$f" /tmp/names.txt || { echo "::error::missing $f"; exit 1; }
             done
           done
-          ! grep -q 'maven-metadata' /tmp/files.txt || { echo "::error::bundle contains maven-metadata"; exit 1; }
-          echo "every artifact present and signed"
+
+          # Signature coverage, computed rather than assumed: anything that is not itself a
+          # checksum or a signature must have a .asc beside it. This is how we find out whether
+          # Gradle signs files we did not think about — the .module metadata, for one — here
+          # rather than from a rejection at the far end.
+          unsigned=""
+          while read -r entry; do
+            case "$entry" in *.md5|*.sha1|*.sha256|*.sha512|*.asc) continue ;; esac
+            grep -qxF "$(basename "$entry").asc" /tmp/names.txt || unsigned="$unsigned $entry"
+          done < /tmp/entries.txt
+          if [ -n "$unsigned" ]; then
+            echo "::error::unsigned files in the bundle:$unsigned"
+            exit 1
+          fi
+
+          ! grep -q 'maven-metadata' /tmp/entries.txt \
+            || { echo "::error::bundle contains maven-metadata, which the Portal rejects"; exit 1; }
+          echo "every artifact present, every artifact signed, no metadata"
+
 
       - name: Upload to the Central Publisher Portal
         if: steps.v.outputs.dry_run == 'false'

@@ -191,6 +191,20 @@ tasks.register("complianceCheck") {
 // the build that produces them would be an odd place to stop caring. What the Portal wants is
 // a zip of a Maven repository directory, which maven-publish already knows how to write.
 // ---------------------------------------------------------------------------
+// The staging directory is emptied before anything publishes into it, so a bundle can never
+// carry an artifact from a previous version. It has to be a dependency of the publish tasks
+// rather than a doFirst on the Zip: task dependencies run before a task's own actions, so a
+// doFirst here would delete the very files it was about to archive. That produced a valid,
+// signed, completely empty zip, which is the sort of thing a completeness check exists for.
+val cleanCentralBundle = tasks.register<Delete>("cleanCentralBundle") {
+    delete(layout.buildDirectory.dir("central-bundle"))
+}
+
+subprojects {
+    tasks.matching { it.name == "publishMavenPublicationToCentralBundleRepository" }
+        .configureEach { dependsOn(cleanCentralBundle) }
+}
+
 tasks.register<Zip>("centralBundle") {
     group = "publishing"
     description = "Signed, checksummed bundle for upload to central.sonatype.com"
@@ -209,7 +223,13 @@ tasks.register<Zip>("centralBundle") {
             "refusing to bundle ${project.version}: Central takes releases, not snapshots. " +
             "Pass -Pversion=1.0.0"
         }
-        delete(layout.buildDirectory.dir("central-bundle"))   // never ship a stale artifact
+    }
+
+    // A bundle with nothing in it is a failure that looks like a success until the far end.
+    doLast {
+        val entries = zipTree(archiveFile.get().asFile).files.size
+        check(entries > 0) { "central bundle is empty — nothing was staged for publication" }
+        logger.lifecycle("central bundle: $entries files -> ${archiveFile.get().asFile}")
     }
 }
 
