@@ -110,6 +110,10 @@ one.
 
 ## After the release
 
+Update the version in `docs/index.md`. The site shows a literal coordinate for people to copy,
+so it is the one place a released version is written down by hand and nothing keeps it in step
+— the same drift a wiki would have had, kept in the repository so at least a reviewer sees it.
+
 Bump the development version in `gradle.properties`. This is a change to `main`, so it goes
 through a pull request like any other:
 

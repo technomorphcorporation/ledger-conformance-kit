@@ -15,12 +15,60 @@ INV-06   FAIL   BLOCKER  No lost updates on a hot account
 
 ## Using it
 
+> **Point it at a scratch environment.** The suite writes: it posts transactions, and it calls
+> `reset()` before every invariant. `AdapterTck` check TCK-00 reads the journal before anything
+> else runs and refuses to continue if it is not already empty — but that is a backstop, not a
+> licence. Never run it against production.
+
 ```kotlin
+// Gradle
 testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
+```
+
+```xml
+<!-- Maven -->
+<dependency>
+  <groupId>io.github.technomorphcorporation</groupId>
+  <artifactId>lck-junit5</artifactId>
+  <version>1.0.0</version>
+  <scope>test</scope>
+</dependency>
 ```
 
 `lck-spi` — the artifact you compile your adapter against — has **zero dependencies** and
 targets Java 17. `lck-junit5` is the only module that pulls a third-party jar.
+
+Implement five methods:
+
+```java
+public final class AcmeLedgerAdapter implements LedgerAdapter {
+    public String name()                            { return "acme-ledger"; }
+    public Set<Capability> capabilities()           { return EnumSet.of(OVERDRAFT_GUARD, REPLAY); }
+    public void reset()                             { /* truncate the scratch schema */ }
+    public PostResult post(Transaction txn)         { /* commit or reject, idempotently */ }
+    public long balance(String acct, String ccy)    { /* minor units */ }
+    public List<JournalEntry> journal()             { /* append-only, in commit order */ }
+}
+```
+
+Declare only the capabilities your ledger genuinely has. An invariant that needs one you have
+not declared reports **not applicable**, never a failure — a ledger with no overdraft concept
+is not broken for lacking one.
+
+Then one annotation. Note `extends`: `ConformanceTests` is an abstract class holding the
+`@TestTemplate` that JUnit expands into one test per invariant.
+
+```java
+@LedgerConformance(adapter = AcmeLedgerAdapter.class, seed = 42)
+class LedgerConformanceTest extends ConformanceTests { }
+```
+
+Fourteen ordinary JUnit tests appear, named by invariant. Existing CI reporting, flaky-test
+history and IDE integration all work with no further wiring.
+
+**Not on the JVM?** Expose four test-only HTTP endpoints and run the same suite against them —
+about 80 lines in any language, and no Java to write. See
+[the HTTP contract](http-adapter.md).
 
 ## Start here
 
