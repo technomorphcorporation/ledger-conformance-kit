@@ -41,6 +41,15 @@ Publish the *public* key to a keyserver — Central looks it up there. Keep the 
 somewhere you will still have it in two years; losing it means every future release is signed
 by a different key, which defeats the point of signing them.
 
+Two things that fail in ways the error message does not explain:
+
+- **Export the secret key, not the public one.** `--export-secret-keys`, not `--export`. The
+  commands differ by one word and the resulting failure says only that a key ring could not be
+  read. The workflow checks for this before it reaches Gradle.
+- **`SIGNING_PASSWORD` must match the key.** If the key has no passphrase, leave the secret
+  unset rather than inventing a value; a non-empty passphrase against an unprotected key fails
+  at signing.
+
 ### 3. Generate Portal tokens
 
 In the Portal, under your account, generate a user token. It comes as a username and a
@@ -54,7 +63,7 @@ Settings → Secrets and variables → Actions:
 | Secret | Value |
 |---|---|
 | `SIGNING_KEY` | the ASCII-armored **private** key from step 2, including the BEGIN/END lines |
-| `SIGNING_PASSWORD` | the passphrase for that key |
+| `SIGNING_PASSWORD` | the passphrase for that key — leave the secret unset if the key has none |
 | `CENTRAL_USERNAME` | Portal token username from step 3 |
 | `CENTRAL_PASSWORD` | Portal token password from step 3 |
 

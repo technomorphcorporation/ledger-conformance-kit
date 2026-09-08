@@ -72,8 +72,12 @@ jobs:
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
         run: |
           missing=""
-          [ -n "$SIGNING_KEY" ]      || missing="$missing SIGNING_KEY"
-          [ -n "$SIGNING_PASSWORD" ] || missing="$missing SIGNING_PASSWORD"
+          [ -n "$SIGNING_KEY" ] || missing="$missing SIGNING_KEY"
+          # SIGNING_PASSWORD is deliberately not required. A key generated without a passphrase
+          # is a legitimate choice for a key that only ever lives in a secret store, and
+          # demanding a value here would push someone into setting a dummy one — which fails at
+          # signing with a passphrase mismatch, several steps later, for a reason the error does
+          # not give. It must match the key: empty when the key has none.
           if [ "${{ steps.v.outputs.dry_run }}" = "false" ]; then
             [ -n "$CENTRAL_USERNAME" ] || missing="$missing CENTRAL_USERNAME"
             [ -n "$CENTRAL_PASSWORD" ] || missing="$missing CENTRAL_PASSWORD"
@@ -88,7 +92,30 @@ jobs:
             echo "  4. add SIGNING_KEY, SIGNING_PASSWORD, CENTRAL_USERNAME, CENTRAL_PASSWORD"
             exit 1
           fi
-          echo "all required secrets are set"
+          # Shape, not just presence. Gradle's in-memory signing fails with "could not read PGP
+          # secret key ring", which does not distinguish a truncated key from the wrong half of
+          # the pair — and exporting the public key by mistake is the easiest thing in the world
+          # to do, because the command differs by one word. The value is never echoed.
+          case "$SIGNING_KEY" in
+            *"BEGIN PGP PRIVATE KEY BLOCK"*) : ;;
+            *"BEGIN PGP PUBLIC KEY BLOCK"*)
+              echo "::error::SIGNING_KEY holds a PUBLIC key. Signing needs the private half:"
+              echo "  gpg --armor --export-secret-keys <KEY_ID>     # not --export"
+              exit 1 ;;
+            *)
+              echo "::error::SIGNING_KEY is not an ASCII-armored PGP block. It must include the"
+              echo "BEGIN and END lines and every line between them, exactly as gpg printed it:"
+              echo "  gpg --armor --export-secret-keys <KEY_ID>"
+              exit 1 ;;
+          esac
+          case "$SIGNING_KEY" in
+            *"END PGP PRIVATE KEY BLOCK"*) : ;;
+            *) echo "::error::SIGNING_KEY has no END line — it was truncated when it was pasted"; exit 1 ;;
+          esac
+          if [ -z "$SIGNING_PASSWORD" ]; then
+            echo "::notice::SIGNING_PASSWORD is empty — correct only if the key has no passphrase"
+          fi
+          echo "all required secrets are set, and SIGNING_KEY is an armored private key"
 
       # The gate runs before the release, not after it. An artifact that fails verify should
       # never reach a repository that cannot un-publish it.
