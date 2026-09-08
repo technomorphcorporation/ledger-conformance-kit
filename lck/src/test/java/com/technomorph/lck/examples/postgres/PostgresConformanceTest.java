@@ -80,10 +80,37 @@ class PostgresConformanceTest {
         Set<String> broke = broke(Invariants.run(naive, SEED));
         report("naive-postgres", Invariants.run(naive, SEED));
 
-        // The three defences in the article, and what each costs.
-        assertTrue(broke.contains("INV-05"), "check-then-act on the key must lose the duplicate race");
-        assertTrue(broke.contains("INV-06"), "read-modify-write on a balance must lose an update");
-        assertTrue(broke.contains("INV-09"), "a funds check before the write must let the account overdraw");
+        // Two of the three defences cost exactly what the article says they cost.
+        assertTrue(broke.contains("INV-05"),
+                "check-then-act on the key must lose the duplicate race: the check is in "
+                        + "application code and nothing in the schema stops a second writer");
+        assertTrue(broke.contains("INV-09"),
+                "a funds check that runs before the write must let the account overdraw");
+        assertTrue(broke.contains("INV-08"),
+                "a balance written from a stale read must diverge from the journal");
+
+        // The third does not, and this is the most useful thing this example demonstrates.
+        //
+        // Read-modify-write on a balance is a lost update everywhere except here. Every credit
+        // in INV-06 debits external:funding first, and this ledger takes a row lock on it — so
+        // all five hundred transactions queue on one row, only one is ever between reading
+        // acct:hot and committing, and the update it would have lost is never lost. The ledger
+        // is accidentally correct because it is accidentally serial.
+        //
+        // Two things follow. A concurrency invariant can be satisfied by a ledger that has no
+        // concurrency, which is why INV-06 reports the applied count rather than a bare verdict.
+        // And the same logical defect surfaces or hides depending on what else the transaction
+        // touches: the reference ledger shards external:funding sixteen ways precisely so it
+        // does not serialise, and sharding it is what would expose this bug.
+        assertFalse(broke.contains("INV-06"),
+                "if this now fails, the accidental serialisation on external:funding has gone "
+                        + "and the comment above needs revisiting rather than the assertion");
+
+        // INV-07 and INV-13 deadlock here — this ledger applies legs in whatever order the
+        // transaction lists them, with no total order over accounts. Deliberately not asserted:
+        // whether a deadlock is detected is timing, and a flaky assertion in the example that
+        // demonstrates rigour would be its own kind of finding.
+        assertTrue(broke.size() >= 3, () -> "expected the naive ledger to break several: " + broke);
     }
 
     @Test
