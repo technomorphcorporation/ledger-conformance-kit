@@ -78,7 +78,15 @@ them to two is where the bugs live:
 different body is a client bug, and it should be a `422`, not a silent replay of a
 different amount.
 
-`INV-04` and `INV-05` cover the sequential and concurrent cases. Systems that pass
+`INV-04` and `INV-05` cover the sequential and concurrent cases, and `INV-15` covers the
+three-state rule directly: it fires simultaneous duplicates of a transaction that will be
+*refused*, and fails a ledger that answers any of them with "already applied". That is the case
+the other two cannot see, because both fund the account first, so the transaction under test
+always succeeds.
+
+Worth knowing where INV-15 came from: this kit's own reference ledger collapsed IN_FLIGHT and
+COMMITTED, and all fourteen invariants passed it. The defect was found by reading, and the
+invariant was written afterwards. Systems that pass
 the first and fail the second are common: the check exists, it just is not atomic
 with the write.
 

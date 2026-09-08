@@ -120,6 +120,9 @@ leaks between invariants the findings are meaningless. *(TCK-00, TCK-01)*
 commit order. A `HashMap` iteration order will fail INV-02 and INV-14 for reasons that
 have nothing to do with your ledger. *(TCK-05, TCK-07)*
 
+Capabilities decide which invariants run: `OVERDRAFT_GUARD` unlocks `INV-09` and `INV-15`,
+`HASH_CHAIN` unlocks `INV-03`, `COMPENSATION` unlocks `INV-12`, and `REPLAY` unlocks `INV-13`.
+
 **5. Over-declaring capabilities.** Declare only what the ledger genuinely has.
 Under-declaring is safe — those invariants report *not applicable*. Over-declaring
 produces false findings that waste your engineers' time and your credibility. *(TCK-08)*

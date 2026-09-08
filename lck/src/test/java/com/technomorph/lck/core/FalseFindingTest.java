@@ -43,7 +43,7 @@ class FalseFindingTest {
     // ------------------------------------------------------------------ write conflicts
 
     @ParameterizedTest(name = "{0} holds against a ledger that refuses conflicting writes")
-    @ValueSource(strings = {"INV-05", "INV-06", "INV-07", "INV-09", "INV-10"})
+    @ValueSource(strings = {"INV-05", "INV-06", "INV-07", "INV-09", "INV-10", "INV-15"})
     @DisplayName("a ledger that rejects under contention is not accused of losing money")
     void conflictRejectionIsNotALostUpdate(String id) {
         Result r = Invariants.runOne(new ConflictingLedger(), byId(id), SEED);
