@@ -36,7 +36,7 @@ deliberately ordinary:
   INV-11   FAIL   MAJOR    Currencies cannot be mixed               a USD debit was allowed to close an EUR credit
   INV-13   FAIL   MAJOR    State rebuilds from the event log        acct:0: live 209.00 vs rebuilt 200.00
   INV-14   FAIL   MINOR    Per-account ordering is monotonic        account acct:a has duplicate sequence numbers
-  held 3 · broke 10 · not applicable 1
+  held 4 · broke 10 · not applicable 1
 ```
 
 It validates double-entry, keeps an append-only journal, and checks for sufficient funds.
@@ -50,7 +50,7 @@ You compile against **one artifact with zero dependencies**, targeting **Java 17
 team still on 17 can implement an adapter.
 
 ```kotlin
-testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.1.0")
 ```
 
 That is the whole install: `lck-junit5` brings `lck-spi`, the artifact your adapter implements.
