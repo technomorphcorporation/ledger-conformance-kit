@@ -144,6 +144,18 @@ the release that was just cut. That window is harmless — nothing is built from
 it — but it is why the bump is a step in this document rather than something to get to
 eventually.
 
+## A note on what CI covers
+
+`verify` runs on every push and pull request and is the required check. The Postgres example
+is **not** in it — it needs Docker and takes minutes, and a gate people wait for is a gate they
+learn to route around. It runs in its own workflow on `main` after a merge, nightly, and on
+demand.
+
+The consequence, stated rather than buried: a pull request can merge and break the Postgres
+example. It will go red on `main` within minutes, naming the commit. That is a deliberate
+trade of a slower signal for a faster gate, and worth revisiting if it ever costs more than it
+saves.
+
 ## What the bundle contains
 
 Three modules, each with a jar, a sources jar, a javadoc jar and a POM, plus a `.asc`

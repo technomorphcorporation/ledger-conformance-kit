@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Skips rather than fails when Docker is unavailable, so it does not punish a contributor
  * who does not have it running.
  */
+@Tag("docker")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PostgresConformanceTest {
 
