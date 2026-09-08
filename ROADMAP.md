@@ -5,7 +5,7 @@ gets smuggled into an earlier one — see `CLAUDE.md`.
 
 ## v1.0 — evidence (current)
 
-Fourteen invariants, the adapter TCK, the mutation check, ratchet mode, four report
+Fifteen invariants, the adapter TCK, the mutation check, ratchet mode, four report
 formats, the HTTP contract, build-enforced compliance gates. The claim it supports:
 *your ledger held these properties under concurrency, retry and replay, on this date.*
 
@@ -55,10 +55,14 @@ that retries aggressively, runs at machine speed, and may be running in parallel
 copies of itself. That is INV-04 and INV-05 an order of magnitude harder, and a spending
 mandate is INV-09 wearing a different hat.
 
-- **INV-15** Mandate limits hold under concurrent agent spend
-- **INV-16** A revoked mandate takes effect before the next commit, not eventually
-- **INV-17** Agent-initiated reversals are compensation, never deletion
-- **INV-18** Delegated authority is traceable from journal entry back to the human mandate
+- Mandate limits hold under concurrent agent spend
+- A revoked mandate takes effect before the next commit, not eventually
+- Agent-initiated reversals are compensation, never deletion
+- Delegated authority is traceable from journal entry back to the human mandate
+
+Deliberately unnumbered. Invariant numbers are allocated when an invariant ships, not
+reserved — INV-15 was reserved here and has since been taken by the first one that was
+actually written, which is the argument against reserving them.
 
 These need a new `Capability`, which is a MINOR release — so it gets added when the invariants
 that need it exist, not before. A constant was reserved in the SPI for exactly this and has

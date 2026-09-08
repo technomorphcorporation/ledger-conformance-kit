@@ -107,7 +107,10 @@ public final class Mutants {
             new Mutant("M-13", "replay drops the tail of the journal, as a stale snapshot would",
                        Set.of("INV-08", "INV-13"), TruncatedReplay::new),
             new Mutant("M-14", "per-account sequence numbers are stamped from a shared counter",
-                       "INV-14", CollidingAccountSequence::new)
+                       "INV-14", CollidingAccountSequence::new),
+            new Mutant("M-15", "an idempotency key is claimed before the outcome is known, and "
+                       + "the claim is withdrawn if the transaction is refused",
+                       "INV-15", WithdrawnClaim::new)
         );
     }
 
@@ -357,6 +360,30 @@ public final class Mutants {
                         e.amountSubunits(), e.currency(), e.sequence(), 1L,
                         e.prevHash(), e.entryHash()));
             return out;
+        }
+    }
+
+    /**
+     * M-15: the two-state idempotency record. A claim is a marker rather than a promise to
+     * settle, so a concurrent submission that arrives before the outcome is known is told the
+     * payment already succeeded — and the claim is then withdrawn, because it did not.
+     *
+     * <p>This is not hypothetical. The reference ledger carried exactly this defect until it was
+     * found by reading, and no invariant caught it: every other one submits either unique keys,
+     * or duplicates of a transaction that succeeds.
+     */
+    static final class WithdrawnClaim extends ReferenceLedgerDelegate {
+        private final Map<String, String> claimed = new ConcurrentHashMap<>();
+
+        @Override public void reset() { claimed.clear(); delegate.reset(); }
+
+        @Override public PostResult post(Transaction t) {
+            String prior = claimed.putIfAbsent(t.idempotencyKey(), t.transactionId());
+            if (prior != null) return PostResult.duplicate(prior);
+            window();                                   // the outcome is not known yet
+            PostResult r = delegate.post(t);
+            if (r.status() != PostStatus.APPLIED) claimed.remove(t.idempotencyKey());
+            return r;
         }
     }
 

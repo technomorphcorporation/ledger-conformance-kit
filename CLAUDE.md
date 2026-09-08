@@ -4,7 +4,7 @@ Context for Claude Code working in this repository.
 
 ## What this project is
 
-The Ledger Conformance Kit: fourteen executable invariants that any system moving money
+The Ledger Conformance Kit: fifteen executable invariants that any system moving money
 is expected to hold. A client implements a five-method adapter; the suite reports, in
 currency subunits, which properties their ledger breaks under concurrency, retry and
 replay.
@@ -101,7 +101,7 @@ Required, in this order:
 
 Do not build v2 features into v1. Deferred deliberately: fault injection, deterministic
 simulation with an interleaving scheduler, serializability checking, agentic mandate
-invariants (INV-15..18), native-image CLI. See `ROADMAP.md`. If a change would be easier
+invariants, native-image CLI. See `ROADMAP.md`. If a change would be easier
 with one of those, say so rather than smuggling it in.
 
 ## This repository is public

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 
 /**
- * The fourteen invariants.
+ * The fifteen invariants.
  *
  * <p>Each one is an executable statement of something that must be true of any system
  * that moves money, ordered roughly by how expensive the failure is in production.
@@ -613,6 +613,40 @@ public final class Invariants {
                         return Check.bad("account " + en.getKey() + " sequence numbers are out of order");
                 }
                 return Check.ok("strict per-account sequencing across " + seqs.size() + " accounts");
+            }),
+
+        new Invariant("INV-15", "A duplicate of a refused transaction is not reported as applied",
+            Severity.BLOCKER,
+            "A caller is told its payment already succeeded, for a payment that was refused and "
+            + "never written. The retry stops, the money never moves, and neither side records "
+            + "an error.",
+            Capability.OVERDRAFT_GUARD,
+            (led, h) -> {
+                // Funded for one transfer, asked for five. Every submission must be refused —
+                // the question is what the losers are told while the winner is deciding.
+                final int n = 32;
+                final long funded = h.amount(500, 2_000), asked = funded * 5;
+                led.seed("acct:a", funded);
+                Tally t = new Tally();
+                h.burst(n, i -> {
+                    try {
+                        t.record(led.post(h.transfer("acct:a", "acct:b", asked, "doomed-key")));
+                    } catch (Exception e) { throw new RuntimeException(e); }
+                });
+                long bal = led.balance("acct:a");
+
+                if (t.applied() > 0)
+                    return Check.bad(t.applied() + " of " + n + " submissions applied a transfer of "
+                            + money(asked) + " against a balance of " + money(funded));
+                if (t.duplicate() > 0)
+                    return Check.bad(t.duplicate() + " of " + n + " simultaneous submissions were "
+                            + "told DUPLICATE for a transaction that never applied — those callers "
+                            + "believe " + money(asked) + " was transferred, and nothing was written");
+                if (bal != funded)
+                    return Check.bad("balance moved to " + money(bal) + " from " + money(funded)
+                            + " on a transaction that was refused");
+                return Check.ok("all " + n + " simultaneous submissions of an unfundable key were "
+                        + "refused, none reported as already applied, balance held at " + money(bal));
             })
     );
 

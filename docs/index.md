@@ -1,6 +1,6 @@
 # Ledger Conformance Kit
 
-Fourteen executable invariants that any system moving money is expected to hold. You implement
+Fifteen executable invariants that any system moving money is expected to hold. You implement
 a five-method adapter; the suite reports, in currency subunits, which properties your ledger
 breaks under concurrency, retry and replay.
 
@@ -69,7 +69,7 @@ Then one annotation. Note `extends`: `ConformanceTests` is an abstract class hol
 class LedgerConformanceTest extends ConformanceTests { }
 ```
 
-Fifteen ordinary JUnit tests appear: one `adapter TCK` check, then fourteen named by
+Sixteen ordinary JUnit tests appear: one `adapter TCK` check, then fifteen named by
 invariant. Existing CI reporting, flaky-test history and IDE integration all work with no
 further wiring.
 
@@ -108,7 +108,7 @@ Notes behind the invariants. Useful whether or not you run the kit.
 
 ## What it does not do
 
-It reports which of fourteen properties held, under one workload, on one run. It does not
+It reports which of fifteen properties held, under one workload, on one run. It does not
 score, grade, or certify, and passing it does not mean a ledger is correct — a suite can only
 report on the properties someone thought to encode. `Mutants.java` in the repository is the
 evidence that each one catches what it claims to: every invariant ships with an injected defect

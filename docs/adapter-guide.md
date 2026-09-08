@@ -85,7 +85,8 @@ public final class AcmeLedgerAdapter implements LedgerAdapter {
 class LedgerConformanceTest extends ConformanceTests { }
 ```
 
-Fourteen ordinary JUnit tests appear, named by invariant. Your existing CI reporting,
+Sixteen ordinary JUnit tests appear: an `adapter TCK` check and fifteen named by invariant.
+Your existing CI reporting,
 flaky-test history and IDE integration work with no further wiring.
 
 ---
