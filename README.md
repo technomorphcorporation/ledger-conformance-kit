@@ -50,13 +50,12 @@ You compile against **one artifact with zero dependencies**, targeting **Java 17
 team still on 17 can implement an adapter.
 
 ```kotlin
-testImplementation("io.github.technomorphcorporation:lck-spi:1.0.0")     // the adapter contract
-testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")  // the JUnit integration
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
 ```
 
-`lck-junit5` brings `lck-spi` in transitively, but your adapter imports from `lck-spi`
-directly, so declare it directly. Put the adapter in `src/test/java`: it is test
-infrastructure, and `reset()` empties the ledger.
+That is the whole install: `lck-junit5` brings `lck-spi`, the artifact your adapter implements.
+Put the adapter in `src/test/java` — it is test infrastructure, `reset()` empties the ledger,
+and the test classpath is where `lck-spi` lands.
 
 Implement five methods:
 

@@ -22,18 +22,11 @@ INV-06   FAIL   BLOCKER  No lost updates on a hot account
 
 ```kotlin
 // Gradle
-testImplementation("io.github.technomorphcorporation:lck-spi:1.0.0")     // the adapter contract
-testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")  // the JUnit integration
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")
 ```
 
 ```xml
 <!-- Maven -->
-<dependency>
-  <groupId>io.github.technomorphcorporation</groupId>
-  <artifactId>lck-spi</artifactId>
-  <version>1.0.0</version>
-  <scope>test</scope>
-</dependency>
 <dependency>
   <groupId>io.github.technomorphcorporation</groupId>
   <artifactId>lck-junit5</artifactId>
@@ -42,15 +35,14 @@ testImplementation("io.github.technomorphcorporation:lck-junit5:1.0.0")  // the 
 </dependency>
 ```
 
-`lck-spi` is the artifact your adapter compiles against: **zero dependencies**, Java 17, so a
-team still on 17 can implement one. `lck-junit5` is the only module that pulls a third-party
-jar, and it brings `lck-spi` in transitively — but your adapter imports from `lck-spi`
-directly, so declare it directly. A transitive dependency is someone else's decision to
-change.
+One coordinate. `lck-junit5` brings `lck-spi` with it — that is the artifact your adapter
+implements, and it has **zero dependencies** and targets Java 17, so a team still on 17 can
+write one. `lck-junit5` is the only module that pulls a third-party jar.
 
 **Put the adapter in your test source set.** It is test infrastructure, and `reset()` empties
 the ledger — code that can truncate a schema has no business on a production classpath. Keep it
-in `src/test/java` and it cannot be reached from one.
+in `src/test/java` and it cannot be reached from one. That is also what makes the single
+coordinate enough: the test classpath is where `lck-junit5` puts `lck-spi`.
 
 Implement five methods:
 
