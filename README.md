@@ -25,22 +25,28 @@ Two bundled ledgers. The reference implementation holds all fifteen. The other i
 deliberately ordinary:
 
 ```
-  naive-ledger   seed=42        # amounts below are drawn from the seed
+  naive-ledger   seed=42
   INV-04   FAIL   BLOCKER  Duplicate submission is a no-op          replay wrote 2 extra journal entries
   INV-05   FAIL   BLOCKER  Concurrent duplicates collapse to one    64 of 64 submissions of one key applied, expected at most 1
-  INV-06   FAIL   BLOCKER  No lost updates on a hot account         balance 206.00 after 500 of 500 credits applied — lost 294.00
-  INV-07   FAIL   BLOCKER  Value is conserved under transfers       total drifted -3.00 (open 800.00 -> close 797.00)
-  INV-08   FAIL   BLOCKER  Balance equals the journal projection    acct:a: read path says 458.50, journal says 400.00
-  INV-09   FAIL   BLOCKER  Overdraft guard holds under a drain      20 of 20 applied, drawing 200.00 against an opening 100.00
+  INV-06   FAIL   BLOCKER  No lost updates on a hot account         balance 126.00 after 500 of 500 credits applied — lost 374.00
+  INV-07   FAIL   BLOCKER  Value is conserved under transfers       total drifted -33.00 (open 480.00 -> close 447.00)
+  INV-08   FAIL   BLOCKER  Balance equals the journal projection    acct:a: read path says 169.00, journal says 0.00
+  INV-09   FAIL   BLOCKER  Overdraft guard holds under a drain      account overdrew to -16.00 after 20 of 20 withdrawals
   INV-10   FAIL   BLOCKER  No precision drift over small movements  destination holds 999 subunits, expected 1000
   INV-11   FAIL   MAJOR    Currencies cannot be mixed               a USD debit was allowed to close an EUR credit
-  INV-13   FAIL   MAJOR    State rebuilds from the event log        acct:0: live 209.00 vs rebuilt 200.00
+  INV-13   FAIL   MAJOR    State rebuilds from the event log        acct:0: live 186.00 vs rebuilt 180.00
   INV-14   FAIL   MINOR    Per-account ordering is monotonic        account acct:a has duplicate sequence numbers
   held 4 · broke 10 · not applicable 1
 ```
 
 It validates double-entry, keeps an append-only journal, and checks for sufficient funds.
 It is wrong anyway. The parts it gets right are the parts that are easy to test.
+
+**Your figures will differ, and that is the point.** The seed fixes the workload — the amounts,
+the account names, the transaction ids — so a finding names something you can look up again. It
+does not fix the outcome of a race. This ledger loses a different amount every run, and INV-09
+sometimes reports an overdrawn account and sometimes an over-applied one, because which
+requests interleave is not ours to decide. What is stable is *which* invariants break.
 
 ---
 
