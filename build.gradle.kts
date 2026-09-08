@@ -162,6 +162,20 @@ tasks.register("complianceCheck") {
                 "$name must have zero external runtime deps, found: ${external.get()}"
             }
         }
+        // The documented install is a single coordinate: add lck-junit5 and lck-spi arrives with
+        // it. That is only true while the api chain below holds, and "api" versus "implementation"
+        // is a one-word edit that breaks every consumer's build without failing ours. So the
+        // instruction is asserted here rather than trusted to survive in a markdown file.
+        mapOf("lck" to "lck-spi", "lck-junit5" to "lck").forEach { (module, exposed) ->
+            val exposes = project(":$module").configurations.getByName("api")
+                .allDependencies.any { it.name == exposed }
+            require(exposes) {
+                "$module must expose $exposed as `api`, not `implementation`: docs/index.md and " +
+                "README.md tell a client that adding lck-junit5 alone is enough to implement an " +
+                "adapter, and that stops being true the moment this changes"
+            }
+        }
+
         val banned = Regex("""(?i)(analytics|telemetry|posthog|segment\.io|sentry|mixpanel)""")
 
         // A report is opened on a reviewer's machine inside a bank. Any asset it references
