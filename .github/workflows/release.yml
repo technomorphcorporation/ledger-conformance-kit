@@ -112,6 +112,23 @@ jobs:
             *"END PGP PRIVATE KEY BLOCK"*) : ;;
             *) echo "::error::SIGNING_KEY has no END line — it was truncated when it was pasted"; exit 1 ;;
           esac
+
+          # The one that gets everybody: newlines collapsed on the way into the secret. The
+          # BEGIN and END markers both survive, so every substring check above still passes,
+          # and the key is unparseable — which Gradle reports only as "could not read PGP
+          # secret key". An armored private key is dozens of lines; one or two means the
+          # line breaks are gone.
+          lines=$(printf '%s\n' "$SIGNING_KEY" | wc -l | tr -d ' ')
+          echo "SIGNING_KEY: $lines lines"        # a count is not the key
+          if [ "$lines" -lt 10 ]; then
+            echo "::error::SIGNING_KEY is $lines lines. An ASCII-armored private key is dozens."
+            echo "The line breaks were lost when the secret was set. Set it from the file:"
+            echo "  gpg --armor --export-secret-keys <KEY_ID> > /tmp/signing-key.asc"
+            echo "  gh secret set SIGNING_KEY < /tmp/signing-key.asc"
+            echo "  rm /tmp/signing-key.asc"
+            echo "Pasting into the web UI also preserves them; passing --body \"\$(cat ...)\" may not."
+            exit 1
+          fi
           if [ -z "$SIGNING_PASSWORD" ]; then
             echo "::notice::SIGNING_PASSWORD is empty — correct only if the key has no passphrase"
           fi

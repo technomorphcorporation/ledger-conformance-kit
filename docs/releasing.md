@@ -49,6 +49,19 @@ Two things that fail in ways the error message does not explain:
 - **`SIGNING_PASSWORD` must match the key.** If the key has no passphrase, leave the secret
   unset rather than inventing a value; a non-empty passphrase against an unprotected key fails
   at signing.
+- **Set the key from a file, not from a shell variable.** Losing the line breaks is the most
+  common way this fails, and it survives every obvious sanity check: the BEGIN and END markers
+  are both still there, and the key is still unreadable. Gradle reports it as nothing more than
+  `Could not read PGP secret key`.
+
+  ```bash
+  gpg --armor --export-secret-keys <KEY_ID> > /tmp/signing-key.asc
+  gh secret set SIGNING_KEY < /tmp/signing-key.asc
+  rm /tmp/signing-key.asc
+  ```
+
+  Pasting into the web UI preserves newlines too. The workflow reports the line count of the
+  secret — a count, never the key — so this is visible in the log rather than inferred.
 
 ### 3. Generate Portal tokens
 
