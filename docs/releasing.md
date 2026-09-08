@@ -99,6 +99,24 @@ The dry run is worth doing the first time. It exercises signing, the bundle layo
 completeness check without touching Central, which is the half of the process that cannot be
 undone if it is wrong.
 
+## After the release
+
+Bump the development version in `gradle.properties`:
+
+```properties
+version=1.0.2-SNAPSHOT
+```
+
+The tag is what a release is built from, so this is not a value to keep in step with anything
+— it is what local and CI builds produce *between* releases, and it has to sit above the last
+release. Leaving it at `1.0.1-SNAPSHOT` after releasing 1.0.1 means a locally built jar sorts
+below code it already contains, which is the sort of thing that costs an afternoon when
+someone is bisecting a report.
+
+Bump to the lowest plausible next version. Raise it to a MINOR when a feature actually lands:
+a new invariant in a MINOR can turn a client's build red, so that belongs in a decision rather
+than in a default.
+
 ## What the bundle contains
 
 Three modules, each with a jar, a sources jar, a javadoc jar and a POM, plus a `.asc`

@@ -9,7 +9,10 @@ allprojects {
     // ownership of the GitHub organisation, which avoids requiring a domain nobody owns —
     // com.technomorphcorporation would have needed technomorphcorporation.com.
     group = "io.github.technomorphcorporation"
-    version = providers.gradleProperty("version").getOrElse("1.0.0-SNAPSHOT")
+    // Set in gradle.properties, overridden by -Pversion for a release. The fallback is
+    // deliberately implausible: a missing property should be obvious in the artifact name
+    // rather than quietly produce a version that looks reasonable and is wrong.
+    version = providers.gradleProperty("version").getOrElse("0.0.0-LOCAL")
 }
 
 subprojects {
