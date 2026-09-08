@@ -174,7 +174,11 @@ jobs:
           # rather than from a rejection at the far end.
           unsigned=""
           while read -r entry; do
-            case "$entry" in *.md5|*.sha1|*.sha256|*.sha512|*.asc) continue ;; esac
+            # unzip -Z1 lists directory entries too, and a directory has nothing to sign.
+            case "$entry" in
+              */) continue ;;
+              *.md5|*.sha1|*.sha256|*.sha512|*.asc) continue ;;
+            esac
             grep -qxF "$(basename "$entry").asc" /tmp/names.txt || unsigned="$unsigned $entry"
           done < /tmp/entries.txt
           if [ -n "$unsigned" ]; then
