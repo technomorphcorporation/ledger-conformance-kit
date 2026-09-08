@@ -4,6 +4,11 @@
 
 [versions]
 junit = "5.10.2"
+# Test-only, and only for the worked Postgres example: the invariants are about behaviour a
+# real database exhibits under concurrency, and an in-memory structure cannot exhibit it.
+# Neither lck-spi nor lck gains a runtime dependency; complianceCheck still asserts that.
+testcontainers = "1.20.4"
+postgresql = "42.7.4"
 
 [libraries]
 junit-bom               = { module = "org.junit:junit-bom",                   version.ref = "junit" }
@@ -11,3 +16,6 @@ junit-jupiter           = { module = "org.junit.jupiter:junit-jupiter",       ve
 junit-jupiter-api       = { module = "org.junit.jupiter:junit-jupiter-api",   version.ref = "junit" }
 junit-jupiter-params    = { module = "org.junit.jupiter:junit-jupiter-params",version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+testcontainers-postgres = { module = "org.testcontainers:postgresql",  version.ref = "testcontainers" }
+testcontainers-junit    = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
+postgresql-driver       = { module = "org.postgresql:postgresql",      version.ref = "postgresql" }
