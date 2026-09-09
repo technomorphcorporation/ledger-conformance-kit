@@ -22,6 +22,34 @@ Two failure modes govern everything here, and the second is worse:
 4. Add the mutant to `Mutants.all()`.
 5. `./gradlew verify` must be green.
 6. Gate behind a `Capability` if it needs a feature not every ledger has.
+7. **Update the counts.** Several documents state how many invariants there are, and a stale
+   count on the front page is the first thing a reader disbelieves. Find the candidates with:
+
+   ```bash
+   grep -rniE "fourteen|fifteen|sixteen|all 1[0-9]" \
+     --include='*.md' --include='*.yml' --include='*.java' --include='*.kts' . | grep -v /build/
+   ```
+
+   Then use judgement, because not every hit should change:
+
+   - **Stale** — the README headline and table, its "holds all *n*" line, the JUnit test count
+     (an `adapter TCK` check plus the invariants), `docs/index.md`, `docs/adapter-guide.md`,
+     `CLAUDE.md`, `ROADMAP.md`, and the class javadoc on `Invariants`.
+   - **History, and must not change** — the changelog entry for a past release, an RFC saying
+     how many invariants existed when it was written, a comment describing a bug as it was
+     seen. Rewriting these makes them wrong.
+   - **Not about invariants at all** — the shard count in `ReferenceLedger` and the pool size
+     in the Postgres example both mention sixteen.
+
+   Two live outside that search and have to be done by hand. **`docs/_config.yml`** sets the
+   published site's title and subtitle, and is configuration rather than prose, so a search for
+   sentences will not find it — it has gone stale once already. And the **GitHub repository
+   description**, which is in settings and not in the tree at all.
+
+   Where a count is in code rather than prose, refer to the registry instead of writing a
+   number. A comment saying "every invariant in the registry" cannot go stale.
+8. **Add a changelog entry under `[Unreleased]`, and say it can turn a build red.** A new
+   invariant is a MINOR that fails ledgers which were passing yesterday. Point at `--baseline`.
 
 ## Style
 
