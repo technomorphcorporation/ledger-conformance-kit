@@ -43,8 +43,9 @@ class MutationTest {
                 + "real defect or — more likely — the invariant is wrong. Fix before shipping:\n"
                 + broke.stream().map(r -> "  " + r.id() + " " + r.title() + " — " + r.detail())
                        .reduce((a, b) -> a + "\n" + b).orElse(""));
-        // Not ">= 12": the reference ledger declares every capability, so all fourteen apply and
-        // all fourteen must pass. Accepting twelve lets two quietly start skipping — through a
+        // Not ">= 12": the reference ledger declares every capability, so every invariant in
+        // the registry applies and every one must pass. Accepting twelve lets two quietly start
+        // skipping — through a
         // capability regression, say — with the build still green. The old message reported
         // rs.size(), which is always 14, and so would have misdirected whoever hit it.
         List<String> notPassing = rs.stream().filter(r -> r.status() != Status.PASS)

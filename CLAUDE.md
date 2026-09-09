@@ -46,7 +46,7 @@ that is the only good reason to split a build.
 lck-spi/     zero deps, Java 17 bytecode.  Model, LedgerAdapter, Capability.
              What CLIENTS compile against. Small enough to review, old enough to consume.
 lck/         zero deps, Java 21.  The engine:
-               core/      Invariants (all 14), Harness, Baseline
+               core/      Invariants (the registry), Harness, Baseline
                tck/       AdapterTck — verifies the adapter before findings are believed
                report/    HTML / JSON / SARIF / JUnit XML
                examples/  ReferenceLedger (correct), NaiveLedger (deliberately ordinary)
