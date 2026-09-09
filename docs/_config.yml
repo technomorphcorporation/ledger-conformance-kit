@@ -2,7 +2,7 @@
 # that everything here is versioned with the code it describes, reviewed in a pull request, and
 # covered by the same branch protection — a page cannot quietly drift away from the behaviour.
 title: Ledger Conformance Kit
-description: Fourteen executable invariants for systems that move money.
+description: Fifteen executable invariants for systems that move money.
 theme: jekyll-theme-primer
 
 # jekyll-relative-links is on by default for Pages and rewrites .md links to .html, so the

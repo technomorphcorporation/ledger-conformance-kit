@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assumptions.abort;
  * the first invariant actually executes. An IDE listing the tests in this class, or a
  * {@code --dry-run}, therefore does not reset the environment the adapter points at — which
  * matters most in exactly the case where the adapter is pointed somewhere it should not be.
- * It also means selecting one invariant runs one invariant, not all fourteen.
+ * It also means selecting one invariant runs one invariant, not the whole registry.
  */
 public final class LedgerConformanceExtension implements TestTemplateInvocationContextProvider {
 
