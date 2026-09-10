@@ -10,6 +10,14 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
+### Changed
+- **Every report now states what the run did not test.** The site said it and the RFCs said it,
+  but the HTML and JSON a client circulates said nothing — so the limitations were legible to
+  whoever evaluated the kit and invisible to whoever received its output. Both formats now carry
+  the scope: one workload per invariant, no fault injection, no serializability checking, and
+  that a not-applicable row is a property left unmeasured rather than one that passed. Anything
+  parsing the JSON gains a `scope` object; no existing field moved.
+
 ### Documentation
 - Four points from external review, in `docs/01-core-topics.md`: when `IN_FLIGHT` is actually
   observable and why a sweep must establish the outcome rather than merely expire the claim;

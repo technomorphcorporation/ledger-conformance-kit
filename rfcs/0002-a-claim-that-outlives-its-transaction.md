@@ -63,36 +63,52 @@ account properly. Retry the identical key with an amount that will now succeed.
 It must apply. A key that never took effect is a key that was never used.
 
 ```
-the key 'stranded' was claimed by a transaction that was refused, and 4.20s of retries
-later it is still unusable — the claim outlived the transaction it belonged to, and the
-caller has no way to make this payment
+the key 'stranded' was claimed by a transaction that was refused, and 35.4s later it is
+still unusable against a declared recovery window of 30s — the claim outlived the
+transaction it belonged to, and the caller has no way to make this payment
 ```
 
 The failing message reports how long it waited, because that is the number a reader needs:
 it separates "released slowly" from "never released".
 
-## The retry budget, and why it is the hard part
+## How long to wait: declared, not configured
 
 A correct ledger may hold a claim for a bounded lease before deciding it is stale, and a lease
-is a legitimate design — Sameer's own point was that a sweeper is required, and a sweeper runs
-on a schedule. So the check cannot demand instant release without failing correct ledgers whose
-recovery is merely not instantaneous. That would be a false positive of the worst kind: right
-about the property, wrong about the deadline, and impossible to argue with because the code
-does eventually work.
+is a legitimate design — the review that produced this RFC made the point that a sweeper is
+*required*, and sweepers run on schedules. So the check cannot demand instant release without
+failing correct ledgers whose recovery is merely not instantaneous.
 
-Proposed: retry for **five seconds**, and report the elapsed time on failure.
+The first draft of this RFC proposed a fixed five-second budget. That was wrong, and the
+reviewer's objection to it is the reason: a product should be flexible and lean, and a client
+should not have to reason about a tool's internal timeouts. A `--retry-budget` flag would be
+the worst of both — a knob whose correct value the client cannot know without understanding how
+the check works, on a tool whose whole point is that they should not have to.
 
-The reasoning is that five seconds is far longer than any in-process release needs and far
-shorter than any plausible human intervention, so it distinguishes a mechanism from the absence
-of one. It does not distinguish a five-second sweeper from a five-minute one, and a ledger with
-a lease longer than the budget will fail this check.
+**The adapter should declare its recovery window, and the suite should adapt.** That is not a
+new idea here; it is exactly what `Capability` already does. An invariant needing a capability
+the adapter has not declared reports not applicable, never a failure, because the kit has
+opinions about correctness and none about your feature set. A recovery window is the same
+shape: a fact about the ledger that only the ledger knows.
 
-**That is a real limitation and it belongs in the finding rather than in a footnote.** A team
-in that position is not being told their ledger is broken; they are being told their recovery
-window exceeds what this check waits for, and `--baseline` exists for exactly the case where a
-finding is understood and accepted. If it turns out that a long lease is common rather than
-unusual, the budget should become configurable, and this RFC will have been wrong about the
-default rather than about the property.
+```java
+/** How long this ledger may take to release a claim whose transaction never applied. */
+default Duration claimRecoveryWindow() { return Duration.ZERO; }
+```
+
+- **Not declared** (the default) — INV-16 reports **not applicable**. A ledger that has not
+  thought about stranded claims is not told it is broken; it is told this was not measured.
+  Discovering the property exists is the value, and a skipped row with a reason does that.
+- **`Duration.ZERO`** declared deliberately means the release is synchronous, and the check
+  expects the very next attempt to succeed.
+- **Any other value** — the check waits that long, plus a small margin, and reports the elapsed
+  time either way.
+
+This is a default method, so adding it is a MINOR release. It costs an existing adapter nothing.
+
+What it buys is that the failure becomes unarguable. A ledger that declares a thirty-second
+window and has not released the key after thirty-five seconds has a defect by its own account of
+itself, not by this suite's guess about what is reasonable. No knob, no tuning, and the client
+states one fact they already know.
 
 ## The mutant
 
@@ -128,11 +144,18 @@ path, and the changelog entry should say so in those words.
 
 ## Open questions for review
 
-1. **Is five seconds the right budget?** It is a guess informed by the shape of the problem,
-   not by data from a real recovery mechanism.
-2. **Should the budget be configurable** rather than fixed, given that a sweeper's schedule is
-   a business decision?
-3. **Is the retry-with-the-same-key contract right?** This assumes a refused payment is
+1. ~~Is five seconds the right budget?~~ ~~Should the budget be configurable?~~ **Resolved by
+   review**: neither. The adapter declares its recovery window and the suite adapts. See above.
+2. **Is the retry-with-the-same-key contract right?** This assumes a refused payment is
    retryable under its original key. That is what the three-state rule implies, but a ledger
    could reasonably require a fresh key after any failure, and the invariant would then be
    asserting a convention rather than a correctness property.
+
+   If a fresh key turns out to be defensible, the invariant does not shrink — it changes shape.
+   The property becomes *a refused transaction leaves the caller a way to make the payment*,
+   which a ledger can satisfy either by releasing the key or by saying plainly that a new one
+   is needed. What would then be the defect is answering "in progress" forever while offering
+   neither. That is a better invariant than the one drafted here, and it is the version to
+   write if the answer comes back that way.
+
+   Still open.
