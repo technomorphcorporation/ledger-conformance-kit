@@ -28,7 +28,9 @@ agreement; the review was his own, in a personal capacity.
 - **A claim can outlive the process that made it.** If a crash lands between writing
   `IN_FLIGHT` and settling it, every retry is told the operation is in progress, indefinitely.
   The suite had a check for concurrent duplicates and nothing for a stranded claim — it would
-  have passed a ledger with this defect. An invariant is being written for it.
+  have passed a ledger with this defect. Proposed as INV-16 in
+  [`rfcs/0002`](rfcs/0002-a-claim-that-outlives-its-transaction.md), which is open for review
+  and carries three questions the author could not settle alone.
 - **Idempotency keys need an eviction policy.** Recorded in `docs/01-core-topics.md`, together
   with the reason it is a correctness parameter rather than housekeeping: evict a committed key
   before the longest possible retry and the retry is not a duplicate any more, it is a second
