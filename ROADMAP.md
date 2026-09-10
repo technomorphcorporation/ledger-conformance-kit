@@ -19,7 +19,6 @@ process exercised for real by INV-15.
 
 **Still outstanding, and deliberately not gates:**
 
-- `REVIEWERS.md`
 - An OpenAPI spec for the HTTP contract, so a client implements it from a specification rather
   than from prose
 - A second *known-correct* implementation for the mutation corpus to be vetted against. The

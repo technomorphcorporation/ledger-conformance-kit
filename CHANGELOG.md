@@ -11,6 +11,14 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 ## [Unreleased]
 
 ### Documentation
+- Four points from external review, in `docs/01-core-topics.md`: when `IN_FLIGHT` is actually
+  observable and why a sweep must establish the outcome rather than merely expire the claim;
+  eviction as a correctness parameter; how the conditional-write pattern maps to DynamoDB,
+  Cassandra, MySQL and Redis, and the multi-partition constraint that does not map; and the
+  distinction between a read that decides and a read that explains, which is why "zero rows
+  updated" stops meaning insufficient funds as soon as the predicate carries a second rule.
+- `REVIEWERS.md`, covering what a review of a new invariant is for, and crediting review that
+  has changed the kit.
 - INV-15 is now cited in the documents that describe the rule it enforces. `01-core-topics`
   states the three-state idempotency rule and cited only INV-04 and INV-05, neither of which
   can see it — both fund the account first, so the transaction under test always succeeds.
