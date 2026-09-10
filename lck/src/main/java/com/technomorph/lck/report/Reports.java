@@ -82,7 +82,13 @@ public final class Reports {
             <tbody>%s</tbody></table>
             <footer>A failing invariant is not a code-review opinion. It is a reproducible run
               against your own adapter, and it prints the exact discrepancy in currency subunits.
-              Reproduce with <code>--seed %d</code>.</footer>
+              Reproduce with <code>--seed %d</code>.
+              <p class="scope"><b>What this run did not test.</b> One workload per invariant
+              against a live adapter. The kit exercises the properties listed above and claims
+              nothing beyond them: it does not inject faults, kill processes or partition the
+              network, and it does not check serializability. A row marked <i>not applicable</i>
+              is a property left unmeasured because the adapter does not declare the capability
+              it needs \u2014 it is not a pass.</p></footer>
             </div></body></html>
             """.formatted(esc(ledgerName), CSS, esc(ledgerName),
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm")),
@@ -163,6 +169,12 @@ public final class Reports {
     public static String json(List<Result> rs, String ledgerName) {
         StringBuilder sb = new StringBuilder("{\"ledger\":\"").append(jesc(ledgerName))
                 .append("\",\"seed\":").append(rs.isEmpty() ? 0 : rs.get(0).seed())
+                // Machine-readable scope, for the same reason the HTML says it: a report gets
+                // circulated far past the person who ran it, and an absent limitation reads as
+                // a claim that there is none.
+                .append(",\"scope\":{\"workloadsPerInvariant\":1,\"notTested\":[")
+                .append("\"fault injection\",\"process or network failure\",\"serializability\"],")
+                .append("\"notApplicable\":\"unmeasured for want of a declared capability, not a pass\"}")
                 .append(",\"results\":[");
         for (int i = 0; i < rs.size(); i++) {
             Result r = rs.get(i);
@@ -283,6 +295,7 @@ public final class Reports {
         .sev{font-family:var(--mono);font-size:10px;color:var(--soft)}
         .sev.BLOCKER{color:var(--stamp);font-weight:600}
         footer{padding:22px 34px 30px;font-size:12px;color:var(--soft);border-top:3px double var(--rule)}
+        footer .scope{margin:14px 0 0;max-width:74ch;line-height:1.55}
         @media (max-width:720px){td:first-child,th:first-child{padding-left:16px}
           td:last-child,th:last-child{padding-right:16px}
           header,.tb,footer{padding-left:18px;padding-right:18px}h1{font-size:24px}
