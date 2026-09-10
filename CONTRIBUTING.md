@@ -71,6 +71,12 @@ Two failure modes govern everything here, and the second is worse:
 `main` and nightly. If you touch the invariants or the Postgres example, run it before opening
 the pull request — otherwise you will find out after your change has merged.
 
+## Reviewers
+
+[`REVIEWERS.md`](REVIEWERS.md) covers what a review of a new invariant is looking for, and
+credits external review that has changed the kit. If a reading of the code or the articles
+changes something here, it belongs there.
+
 ## Licence
 
 Apache-2.0. By contributing you agree your contribution is licensed under it.

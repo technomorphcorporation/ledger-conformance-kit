@@ -92,6 +92,8 @@ UPDATE balance_shards
    AND balance_subunits >= :amount
 RETURNING balance_subunits;
 -- zero rows returned == insufficient funds. Not an exception; a business outcome.
+-- True only while this predicate carries one rule. Add `AND status = 'ACTIVE'` and zero
+-- rows stops meaning anything specific — diagnose with a SELECT in the same transaction.
 ```
 
 **Spring/JDBC, the idempotency claim.** `ON CONFLICT DO NOTHING` returning zero rows

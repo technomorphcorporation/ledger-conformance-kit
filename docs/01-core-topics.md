@@ -39,6 +39,34 @@ one-sixteenth of the account. So:
 `INV-06` and `INV-09` in the kit are exactly this pair. A design that passes one
 by breaking the other is the most common thing I find.
 
+**Zero rows is an outcome, not a reason.** `UPDATE … WHERE balance >= :amt` affecting no rows
+means insufficient funds only while the predicate carries exactly one business rule. Add
+`AND status = 'ACTIVE'` or `AND NOT frozen` and zero rows means "one of these was false" — and
+the customer is told their account is short of money when it is actually suspended.
+
+The answer is not to move the checks back out of the write. Keep the write conditional on the
+money invariant, and when it affects zero rows, run a `SELECT` **in the same transaction** to
+work out which rule refused it. Nothing has been given up: the decision was still atomic, and
+you are only explaining a refusal after it happened.
+
+That is the distinction worth carrying: **a read that decides is dangerous, a read that
+explains is free.** Every defect in this section comes from the first kind. None comes from the
+second.
+
+**Portability.** `ON CONFLICT DO NOTHING` is PostgreSQL, but the pattern is not. DynamoDB has
+`PutItem` with `ConditionExpression: attribute_not_exists(pk)`; Cassandra has
+`INSERT … IF NOT EXISTS`; MySQL has a unique index and a duplicate-key error; Redis has
+`SET key value NX`. The conditional debit travels too — DynamoDB's `UpdateItem` with
+`ConditionExpression: balance >= :amt` is a direct equivalent. *The constraint decides, not a
+query* is the portable claim; the syntax is not.
+
+What does not travel is multi-item atomicity, and that is the constraint that actually bites.
+Double-entry moves two legs, and a Cassandra lightweight transaction is per-partition — so two
+accounts cannot be updated atomically at all. That forces a design decision rather than a
+translation: put both legs in one partition, or make an append-only log the source of truth and
+project balances asynchronously, or accept a saga with compensation and the reconciliation it
+implies.
+
 **Lock ordering.** Any transaction touching more than one account must acquire
 locks in a total order (account id is fine). Without it you have a deadlock that
 appears only under production interleaving, and your on-call learns about it at
@@ -73,6 +101,33 @@ them to two is where the bugs live:
   not exist yet) and not be allowed to proceed.
 - `COMMITTED` — return the stored original response, byte for byte.
 - `FAILED` — release the claim so a genuine retry can succeed.
+
+**When IN_FLIGHT is actually visible.** If the claim and the ledger write are one database
+transaction, a concurrent duplicate blocks on the uncommitted row rather than observing
+IN_FLIGHT, and a crash rolls the claim back as though it never happened. IN_FLIGHT only becomes
+a state anyone can see when the claim has to commit *before* the work — which is exactly what
+an external side effect forces. You cannot call a card network inside your transaction, and you
+cannot call it before claiming the key either, or a retry arriving mid-call has nothing to
+deduplicate against.
+
+**So the claim can strand, and a sweep is not optional.** Process dies after the claim commits,
+before the outcome is known: every retry now gets told the operation is in progress, forever,
+and that key is bricked until someone intervenes.
+
+The dangerous part is the fix. Expiring a stale IN_FLIGHT and letting the retry through can
+charge twice, because the reason you do not know the outcome is that you never learned it — the
+processor may well have taken the money. **A lease bounds how long you wait; it does not tell
+you what happened.** The sweep has to establish the true outcome before releasing anything:
+query the processor by your own key, or pass your key to them so their side deduplicates and
+the answer is available on request. Design for that when you choose the key, not when you write
+the sweeper.
+
+**Eviction is a correctness parameter, not housekeeping.** The table grows without bound unless
+something removes old keys, but the retention window is a business decision rather than a
+storage one: it has to outlive the longest retry anyone can produce, including client libraries
+with generous backoff, gateway replays, and a human re-running a batch on Monday. Evict a
+COMMITTED key too early and a late retry is not a duplicate any more — it is a second payment.
+Anchor the window to the scheme's retry or chargeback horizon.
 
 **Payload binding.** Store a hash of the request body with the key. Same key,
 different body is a client bug, and it should be a `422`, not a silent replay of a
