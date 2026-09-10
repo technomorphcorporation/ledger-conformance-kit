@@ -19,10 +19,11 @@ author is least able to see in their own work.
 
 External review that changed the kit, with what it changed. Named with permission.
 
-### Sameer Sood GS
+### [Sameer Sood](https://www.linkedin.com/in/sameersood/)
 
 Reviewed the published material in September 2026 and raised four points, three of which are
-now in the documentation and one of which is becoming an invariant.
+now in the documentation and one of which is becoming an invariant. Credited by name with his
+agreement; the review was his own, in a personal capacity.
 
 - **A claim can outlive the process that made it.** If a crash lands between writing
   `IN_FLIGHT` and settling it, every retry is told the operation is in progress, indefinitely.
