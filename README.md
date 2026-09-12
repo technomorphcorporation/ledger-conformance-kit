@@ -210,8 +210,9 @@ catch.
   before anything writes and refuses to continue if it is not already empty
 - Apache-2.0, no copyleft in the tree; reproducible builds; Gradle wrapper pinned by
   SHA-256 and validated in CI; third-party GitHub Actions pinned to commit SHAs rather than
-  mutable tags. Release signing is configured but nothing has been published yet — see
-  COMPLIANCE.md for what is and is not in place
+  mutable tags. Every artifact on Maven Central is GPG-signed, with a one-command
+  verification in [SECURITY.md](SECURITY.md); there is still no SBOM and no Sigstore
+  attestation, and COMPLIANCE.md lists what is and is not in place
 
 Full detail: [COMPLIANCE.md](COMPLIANCE.md) · [SECURITY.md](SECURITY.md)
 

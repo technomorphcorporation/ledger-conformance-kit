@@ -41,6 +41,25 @@ Full detail for a third-party review: [COMPLIANCE.md](COMPLIANCE.md).
 
 Builds are reproducible: jar timestamps are normalized and file order is fixed. The Gradle
 wrapper is pinned by SHA-256, so a swapped distribution fails the build rather than running.
-Release signing is configured (GPG, in-memory key) but nothing has been published yet — there
-is no Maven Central release, no SBOM and no Sigstore attestation. `COMPLIANCE.md` lists what
-is in place and what is not, and this section will grow as those land.
+Every artifact on Maven Central is GPG-signed — jar, sources, javadoc and POM, for all three
+modules, at both 1.0.0 and 1.1.0 — by one key:
+
+```
+0DCF 5D5C 8A37 A283 54F9  CAB1 C50B AAE0 1537 C1B3
+```
+
+Verify a release yourself, without taking any of the above on trust:
+
+```bash
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 0xC50BAAE01537C1B3
+B=https://repo1.maven.org/maven2/io/github/technomorphcorporation/lck-spi/1.1.0
+curl -sO $B/lck-spi-1.1.0.jar -O $B/lck-spi-1.1.0.jar.asc
+gpg --verify lck-spi-1.1.0.jar.asc lck-spi-1.1.0.jar
+```
+
+Two limits, stated rather than left to be discovered. The key is on `keyserver.ubuntu.com`
+but **not on `keys.openpgp.org`**, so a reviewer who tries the more common one first gets
+nothing back — that is a publication gap on our side, not a revoked or unknown key. And there
+is still **no CycloneDX SBOM and no Sigstore attestation**: the signature establishes who built
+an artifact, not a verifiable record of how it was built. `COMPLIANCE.md` lists what is in
+place and what is not, and this section will grow as those land.

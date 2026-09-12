@@ -10,6 +10,16 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
+### Fixed
+- **A stale supply-chain claim.** `SECURITY.md`, `COMPLIANCE.md` and the README all still said
+  release signing was configured but nothing had been published — untrue since 1.0.0, and in the
+  one section written for the reader most likely to check it. All three now state what is true:
+  every artifact of all three modules, at 1.0.0 and 1.1.0, is GPG-signed by a named fingerprint,
+  with a command to verify it against the keyserver copy rather than against our word. The two
+  real gaps are stated rather than left to be found — the key is absent from `keys.openpgp.org`,
+  and there is still no SBOM or Sigstore attestation, so the signature attests to the publisher
+  and not to the build.
+
 ### Documentation
 - Four points from external review, in `docs/01-core-topics.md`: when `IN_FLIGHT` is actually
   observable and why a sweep must establish the outcome rather than merely expire the claim;
