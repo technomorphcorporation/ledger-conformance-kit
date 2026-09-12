@@ -51,15 +51,23 @@ modules, at both 1.0.0 and 1.1.0 — by one key:
 Verify a release yourself, without taking any of the above on trust:
 
 ```bash
-gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 0xC50BAAE01537C1B3
+gpg --keyserver hkps://keys.openpgp.org --recv-keys 0xC50BAAE01537C1B3
 B=https://repo1.maven.org/maven2/io/github/technomorphcorporation/lck-spi/1.1.0
 curl -sO $B/lck-spi-1.1.0.jar -O $B/lck-spi-1.1.0.jar.asc
 gpg --verify lck-spi-1.1.0.jar.asc lck-spi-1.1.0.jar
 ```
 
-Two limits, stated rather than left to be discovered. The key is on `keyserver.ubuntu.com`
-but **not on `keys.openpgp.org`**, so a reviewer who tries the more common one first gets
-nothing back — that is a publication gap on our side, not a revoked or unknown key. And there
-is still **no CycloneDX SBOM and no Sigstore attestation**: the signature establishes who built
-an artifact, not a verifiable record of how it was built. `COMPLIANCE.md` lists what is in
-place and what is not, and this section will grow as those land.
+`gpg` will report `Good signature`, then warn that the key is `[unknown]` and **not certified
+with a trusted signature**. That warning is expected and says nothing about the release: it
+means nobody in your own web of trust has vouched for the key, which is true of any key you
+have just fetched from a keyserver. What you are checking is that the signature is good and
+that the fingerprint it prints matches the one above.
+
+The key is published on both `keys.openpgp.org` and `keyserver.ubuntu.com`, so the command
+works whichever your `gpg` is configured for.
+
+One limit, stated rather than left to be discovered: there is still **no CycloneDX SBOM and no
+Sigstore attestation**. A signature establishes who published an artifact, not a verifiable
+record of how it was built. Those two are routinely conflated and only the first is claimed
+here. `COMPLIANCE.md` lists what is in place and what is not, and this section will grow as
+those land.

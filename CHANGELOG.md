@@ -11,6 +11,15 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 ## [Unreleased]
 
 ### Fixed
+- The signing key is now published to `keys.openpgp.org` as well as `keyserver.ubuntu.com`, and
+  the documented verification command is confirmed to work against it from an empty keyring.
+  Until now the key was absent there, and an absent key on that host does not fail cleanly: the
+  server answers 200 with every user ID stripped, and `gpg` refuses to import a key with no user
+  ID while reporting `Total number processed: 1`. A reviewer following the instructions would
+  have seen what looked like a successful fetch, then `No public key` on the verify — which
+  reads as a bogus signature rather than a missing key. `SECURITY.md` also now explains the
+  `not certified with a trusted signature` warning, which is expected output for any freshly
+  fetched key and not a defect in the release.
 - **A stale supply-chain claim.** `SECURITY.md`, `COMPLIANCE.md` and the README all still said
   release signing was configured but nothing had been published — untrue since 1.0.0, and in the
   one section written for the reader most likely to check it. All three now state what is true:

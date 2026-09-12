@@ -87,13 +87,12 @@ Full inventory: `gradle/libs.versions.toml` — short enough to read in full, wh
 
 1.0.0 and 1.1.0 are published, so the signing key, the upload and the Portal's validation are
 no longer untested claims: every artifact of all three modules carries a `.asc` that verifies
-against key `0DCF 5D5C 8A37 A283 54F9  CAB1 C50B AAE0 1537 C1B3`.
+against key `0DCF 5D5C 8A37 A283 54F9  CAB1 C50B AAE0 1537 C1B3`, which is published on
+both `keys.openpgp.org` and `keyserver.ubuntu.com`.
 
-**Not yet in place, and listed here rather than claimed above:** the signing key is published to
-`keyserver.ubuntu.com` but not to `keys.openpgp.org`, so third-party verification works only if
-the reviewer knows to look at the former. There is no CycloneDX SBOM and no Sigstore
-attestation, which means the signature attests to the publisher and not to the build. These are
-tracked in `ROADMAP.md` and this section will grow as they land.
+**Not yet in place, and listed here rather than claimed above:** there is no CycloneDX SBOM and
+no Sigstore attestation, which means the signature attests to the publisher and not to the
+build. These are tracked in `ROADMAP.md` and this section will grow as they land.
 
 ## 6. Vulnerability management
 
