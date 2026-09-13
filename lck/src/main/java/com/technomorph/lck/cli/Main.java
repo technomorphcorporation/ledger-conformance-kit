@@ -25,9 +25,13 @@ public final class Main {
     private static final String USAGE = """
         Ledger Conformance Kit
 
-          lck run   --adapter <class|http://host:port> [options]
-          lck tck   --adapter <class|http://host:port>
+          lck run   --adapter <class|http://host:port|formance:http://host:port> [options]
+          lck tck   --adapter <class|http://host:port|formance:http://host:port>
           lck demo
+
+        A bare http:// URL is the universal adapter, and expects the four /_lck/ endpoints
+        mounted in your own service. Prefix it with formance: to talk to a Formance ledger's
+        own v2 API instead, where there is nothing to mount.
 
         Options
           --seed <n>              fixed seed (default 42). Print it with every finding.
@@ -162,6 +166,15 @@ public final class Main {
 
     private static LedgerAdapter load(Opts o) throws Exception {
         if (o.adapter == null) { System.out.println(USAGE); System.exit(2); }
+        // Checked before the bare-URL case, which would otherwise hand a Formance endpoint to the
+        // adapter that expects /_lck/ endpoints mounted in it — producing a wall of 404s that
+        // looks like a broken ledger rather than the wrong adapter. Capabilities come from the
+        // adapter itself here, so --capabilities is neither needed nor consulted.
+        if (o.adapter.startsWith("formance:")) {
+            Class<?> c = Class.forName("com.technomorph.lck.adapter.FormanceLedgerAdapter");
+            return (LedgerAdapter) c.getDeclaredConstructor(String.class)
+                    .newInstance(o.adapter.substring("formance:".length()));
+        }
         if (o.adapter.startsWith("http://") || o.adapter.startsWith("https://")) {
             Class<?> c = Class.forName("com.technomorph.lck.adapter.HttpLedgerAdapter");
             return (LedgerAdapter) c.getDeclaredConstructor(String.class, java.util.Set.class)

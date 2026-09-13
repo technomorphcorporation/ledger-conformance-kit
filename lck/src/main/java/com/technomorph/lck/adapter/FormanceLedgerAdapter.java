@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       <td>A <em>new</em> ledger each time; see below</td></tr>
  * </table>
  *
- * <h2>Four decisions that could reasonably have gone the other way</h2>
+ * <h2>Five decisions that could reasonably have gone the other way</h2>
  *
  * <p><b>1. {@code reset()} creates a fresh ledger rather than emptying one.</b> The v2 API has no
  * delete endpoint, so this is the only option — but it is also the better one. A ledger created a
@@ -82,6 +82,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the per-account totals, which is what the invariants assert on, so the choice cannot change a
  * finding — but it is a choice, and it is written down.
  *
+ * <p>A leg left with no counterparty in its own currency is <b>never</b> dropped. Sending the
+ * paired remainder would move different money from the money the caller asked to move, so
+ * {@link #post} refuses the transaction outright and the reason names who refused.
+ *
+ * <p><b>5. The ledger is created lazily, not only in {@code reset()}.</b> Nothing guarantees a
+ * reset runs before the first write — TCK-01 writes, then resets, then checks the write is gone.
+ *
  * <h2>Capabilities, deliberately under-declared</h2>
  *
  * <p>{@link Capability#OVERDRAFT_GUARD} is declared: balance checks are on by default and
@@ -90,14 +97,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code balance()}, which reads account volumes — so INV-13 compares two independent answers
  * rather than one answer twice.
  *
+ * <p>{@link Capability#COMPENSATION} is declared, having checked rather than assumed what INV-12
+ * asks of an adapter. It asks for nothing special: the invariant posts an ordinary reversing
+ * transfer and then requires the journal to have grown, the original entries to survive as an
+ * unmodified ordered prefix, and the net position to return to zero. Formance appends and never
+ * rewrites, so all three follow from how it already works. The {@code /revert} endpoint is not
+ * involved, which is what the earlier caution here was about.
+ *
  * <p>{@link Capability#HASH_CHAIN} is <b>not</b> declared. Formance does hash its log, but that
  * chain is not carried on the entries this adapter produces, and declaring a capability the
- * adapter cannot actually evidence would manufacture a failure. {@link Capability#COMPENSATION}
- * is not declared either, pending a reading of what INV-12 requires an adapter to do: Formance
- * reverts by booking a compensating transaction and never deletes, which looks like a match, but
- * "looks like" is not the standard. An undeclared capability is reported as not applicable and
- * never as a failure, so under-declaring costs a row of coverage; over-declaring costs the
- * credibility of every other row.
+ * adapter cannot actually evidence would manufacture a failure. An undeclared capability is
+ * reported as not applicable and never as a failure, so under-declaring costs a row of coverage;
+ * over-declaring costs the credibility of every other row.
  */
 public final class FormanceLedgerAdapter implements LedgerAdapter {
 
@@ -107,8 +118,8 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
     private final String prefix;
     private final String bearer;                 // null for a self-hosted ledger in dev mode
     private final AtomicInteger generation = new AtomicInteger();
-    private volatile String ledger;
-    private volatile String ensured;
+    private final String run;
+    private volatile String ledger;          // null until the first ledger is allocated
 
     public FormanceLedgerAdapter(String baseUrl) { this(baseUrl, "lck", null); }
 
@@ -117,23 +128,32 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
                 ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
         this.prefix = ledgerPrefix;
         this.bearer = bearerToken;
-        this.ledger = ledgerPrefix + "-0";
+        // Ledger names carry a per-run token so two runs against the same server never meet. Without
+        // it the second run opens on the first run's data and TCK-00 correctly refuses to continue,
+        // which reads as a broken ledger rather than a name collision. This is not the kind of
+        // non-determinism the seed rule is about: it names an external resource rather than
+        // generating test data, no invariant observes it, and currentLedger() prints it.
+        this.run = Long.toUnsignedString(System.currentTimeMillis(), 36);
     }
 
     @Override public String name() { return "formance"; }
 
     @Override public Set<Capability> capabilities() {
-        return EnumSet.of(Capability.OVERDRAFT_GUARD, Capability.REPLAY);
+        return EnumSet.of(Capability.OVERDRAFT_GUARD, Capability.REPLAY,
+                Capability.COMPENSATION);
     }
 
     /** The ledger under test, which changes on every {@link #reset()}. Exposed for diagnostics. */
     public String currentLedger() { return ledger; }
 
-    @Override public void reset() throws Exception {
-        for (int attempt = 0; attempt < 50; attempt++) {
-            String next = prefix + "-" + generation.incrementAndGet();
+    @Override public void reset() throws Exception { allocate(); }
+
+    /** Creates the next unused ledger and makes it the one under test. */
+    private void allocate() throws Exception {
+        for (int attempt = 0; attempt < 64; attempt++) {
+            String next = prefix + "-" + run + "-" + generation.incrementAndGet();
             Res r = send("POST", "/v2/" + enc(next), "{}");
-            if (r.ok()) { ledger = next; ensured = next; return; }
+            if (r.ok()) { ledger = next; return; }
             // Racing another run against the same server is the one case worth tolerating: the
             // ledger exists and is not ours to reuse, so take the next name rather than write
             // into somebody else's data.
@@ -141,7 +161,7 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
                 throw new IllegalStateException(
                         "could not create ledger " + next + ": " + r.status + " " + trunc(r.body));
         }
-        throw new IllegalStateException("no unused ledger name under prefix " + prefix);
+        throw new IllegalStateException("no unused ledger name under prefix " + prefix + "-" + run);
     }
 
     /**
@@ -152,15 +172,9 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
      * the only reason this was ever noticed is that the TCK exercises exactly that order.
      */
     private void ensureLedger() throws Exception {
-        String l = ledger;
-        if (l.equals(ensured)) return;
+        if (ledger != null) return;
         synchronized (this) {
-            if (l.equals(ensured)) return;
-            Res r = send("POST", "/v2/" + enc(l), "{}");
-            if (!r.ok() && !"LEDGER_ALREADY_EXISTS".equals(errorCode(r.body)))
-                throw new IllegalStateException(
-                        "could not create ledger " + l + ": " + r.status + " " + trunc(r.body));
-            ensured = l;
+            if (ledger == null) allocate();
         }
     }
 
@@ -206,6 +220,7 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
     }
 
     @Override public long balance(String accountId, String currency) throws Exception {
+        if (ledger == null) return 0L;              // nothing has been written, so nothing is held
         Res r = send("GET", "/v2/" + enc(ledger) + "/accounts/" + enc(accountId) + "?expand=volumes", null);
 
         // An account Formance has never seen does not exist, and asking for it is a 404. That is
@@ -222,6 +237,7 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
     }
 
     @Override public List<JournalEntry> journal() throws Exception {
+        if (ledger == null) return List.of();       // TCK-00 reads before any write; that is empty
         List<String> txns = new ArrayList<>();
         String path = "/v2/" + enc(ledger) + "/transactions?pageSize=100";
         // Paging to exhaustion is not optional: a short read understates the journal, and INV-13

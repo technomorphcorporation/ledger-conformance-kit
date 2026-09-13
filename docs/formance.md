@@ -20,9 +20,21 @@ outcome was not known before it started.
 Reproduce with `./gradlew dockerTest --tests '*FormanceConformance*'`, optionally with
 `-Plck.seed=…`. It skips rather than fails without Docker.
 
+Against a Formance instance you are already running, the CLI reaches it directly:
+
+```bash
+lck tck --adapter formance:http://localhost:3068
+lck run --adapter formance:http://localhost:3068
+```
+
+The `formance:` prefix matters. A bare `http://` URL selects the universal adapter, which expects
+four `/_lck/` endpoints mounted inside your own service, and will answer a Formance endpoint with
+a wall of 404s that looks like a broken ledger rather than the wrong adapter. `--capabilities` is
+neither needed nor consulted here: this adapter declares its own.
+
 ## Result
 
-**Thirteen invariants held. Two were not applicable. Nothing failed, on either seed.**
+**Fourteen invariants held. One was not applicable. Nothing failed, on either seed.**
 
 | Invariant | Seed 42 | Seed 8823714 |
 |---|---|---|
@@ -37,7 +49,7 @@ Reproduce with `./gradlew dockerTest --tests '*FormanceConformance*'`, optionall
 | INV-09 overdraft guard | pass (10 of 20, 10 refused) | pass |
 | INV-10 one-subunit transfers | pass (1000 of 1000) | pass |
 | INV-11 cross-currency | pass — **but read the caveat below** | pass |
-| INV-12 compensation | *not applicable* | *not applicable* |
+| INV-12 compensation | pass (4 original entries intact, 2 appended) | pass |
 | INV-13 balances rebuildable | pass | pass |
 | INV-14 per-account sequencing | pass | pass |
 | INV-15 duplicate of a refused transaction | pass (32 of 32 refused, none reported applied) | pass |
@@ -77,23 +89,26 @@ defect unrepresentable. Tracked as a design question rather than patched with a 
 
 - **It is not a security review, a performance benchmark, or an audit.** Fifteen correctness
   properties of the money path, under one workload, on one machine.
-- **Two invariants were not measured at all.** `HASH_CHAIN` and `COMPENSATION` are not declared by
-  this adapter — see the next section. A not-applicable row is not a pass.
+- **One invariant was not measured at all.** `HASH_CHAIN` is not declared by this adapter — see
+  the next section. A not-applicable row is not a pass.
 - **No fault injection.** Nothing here kills a process, partitions a network, or restarts the
   ledger mid-transaction. Those are v2.0 work; see [ROADMAP.md](../ROADMAP.md).
 - **One version.** v2.3.22, at one digest. It says nothing about any other build.
 
 ## Capabilities, deliberately under-declared
 
-`OVERDRAFT_GUARD` and `REPLAY` are declared. `HASH_CHAIN` and `COMPENSATION` are not, and both
-omissions cost a row of coverage on purpose:
+`OVERDRAFT_GUARD`, `REPLAY` and `COMPENSATION` are declared. `HASH_CHAIN` is not.
 
-- **`HASH_CHAIN`** — Formance hashes its log, but that chain is not carried on the entries this
-  adapter produces. Declaring it would make INV-03 assert against hashes the adapter computed
-  itself, which proves nothing about the ledger.
-- **`COMPENSATION`** — Formance reverts by booking a compensating transaction and never deletes,
-  which looks like a match. "Looks like" is not the standard, and confirming it means reading what
-  INV-12 requires an adapter to do rather than assuming.
+`COMPENSATION` was withheld in the first draft of this adapter on the assumption that INV-12 might
+need Formance's `/revert` endpoint. Reading the invariant rather than assuming showed it needs
+nothing special: it posts an ordinary reversing transfer, then requires the journal to have grown,
+the original entries to survive as an unmodified ordered prefix, and the net position to return to
+zero. Formance appends and never rewrites, so all three follow from how it already works — and
+TCK-08, which checks that declared capabilities match observable behaviour, agrees.
+
+**`HASH_CHAIN`** stays undeclared. Formance hashes its log, but that chain is not carried on
+the entries this adapter produces. Declaring it would make INV-03 assert against hashes the
+adapter computed itself, which proves nothing about the ledger.
 
 An undeclared capability is reported as not applicable and never as a failure. Under-declaring
 costs coverage; over-declaring costs the credibility of every other row.
@@ -128,7 +143,7 @@ balanced transactions, every account moves exactly what its legs said. Legs that
 are never silently dropped — that was a real bug in the first draft of this adapter, and posting
 the paired remainder would have moved different money from the money the caller asked to move.
 
-## Three bugs this run found, all of them ours
+## Four bugs this run found, all of them ours
 
 Worth recording, because the value of a first run against unfamiliar software is mostly what it
 teaches you about your own harness:
@@ -140,7 +155,11 @@ teaches you about your own harness:
    the write is gone. The ledger is now created lazily on first use.
 3. **Unpairable legs were silently discarded**, which sent an empty transaction rather than
    refusing one.
+4. **Two consecutive runs against the same server collided.** Ledger names restarted from the same
+   point each time, so the second run opened on the first run's data and TCK-00 refused to
+   continue — correctly, and for a reason that reads as a broken ledger rather than a name
+   clash. Names now carry a per-run token.
 
-All three were caught by the TCK and by the run's own assertion that no invariant may end in
+All four were caught by the TCK and by the run's own assertion that no invariant may end in
 `ERROR` — an exception escaping the adapter is a defect in the adapter, never a finding about the
 ledger. That assertion is why this page reports a result rather than three false findings.

@@ -147,6 +147,38 @@ class FormanceConformanceTest {
                     r.detail() == null ? "" : r.detail());
     }
 
+    @Test
+    @Order(3)
+    @DisplayName("journal() pages to exhaustion rather than stopping at the first hundred")
+    void journalPagesToExhaustion() throws Exception {
+        adapter.reset();
+
+        // The page size is 100, so 150 transactions forces a second page. A short read here would
+        // not look like a bug: it would look like INV-13 finding a ledger that cannot rebuild its
+        // own balances, which is exactly the false finding this kit exists not to produce.
+        int txns = 150;
+        for (int i = 0; i < txns; i++)
+            adapter.post(new com.technomorph.lck.spi.Model.Transaction(
+                    "page-" + i,
+                    List.of(com.technomorph.lck.spi.Model.Leg.debit("external:funding", 100),
+                            com.technomorph.lck.spi.Model.Leg.credit("acct:paged", 100)),
+                    "page-txn-" + i, true, java.util.Map.of()));
+
+        List<com.technomorph.lck.spi.Model.JournalEntry> journal = adapter.journal();
+
+        assertEquals(txns * 2, journal.size(), () ->
+                "one posting is a debit and a credit, so " + txns + " transactions are "
+                        + (txns * 2) + " entries. Got " + journal.size()
+                        + (journal.size() == 200 ? " — a short read that stopped at the first page" : ""));
+
+        assertEquals(txns * 100L, adapter.balance("acct:paged", "USD"),
+                "the balance read path must agree with what was posted");
+        assertEquals(adapter.balance("acct:paged", "USD"),
+                adapter.replayBalance("acct:paged", "USD"),
+                "a complete journal must rebuild the balance exactly — this is INV-13's property, "
+                        + "asserted here against a transaction count that spans pages");
+    }
+
     private static void report(List<Result> results) throws Exception {
         Path dir = Path.of("build", "reports", "lck");
         Files.createDirectories(dir);
