@@ -10,6 +10,26 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
+### Added
+- **A Formance Ledger adapter, and the first run of this kit against a ledger nobody here wrote.**
+  `FormanceLedgerAdapter` speaks the v2 HTTP API directly, using only `java.net.http`, so the
+  published jars still carry no dependencies. Against Formance v2.3.22 on two seeds, fourteen
+  invariants held and one was not applicable — see `docs/formance.md`, which also records the one
+  row that reports a pass the ledger did not earn, four bugs the run found in our own adapter,
+  and what the run does not show. Test-only in the sense that nothing about it is required to use
+  the kit; the adapter itself ships.
+- `FormancePostingsTest` asserts the one place the adapter chooses rather than translates: the kit
+  models a transaction as independent debit and credit legs, Formance as directed postings, and
+  across eight hundred generated transactions every account must move exactly what its legs said.
+
+### Changed
+- `lck run|tck --adapter formance:http://host:port` reaches the Formance adapter from the command
+  line. A bare `http://` URL still selects the universal adapter, which expects four `/_lck/`
+  endpoints mounted in your own service — pointed at a Formance endpoint it answers with 404s that
+  look like a broken ledger rather than the wrong adapter.
+- The `postgres` workflow is now `examples`, because `dockerTest` runs every `@Tag("docker")`
+  example and there are two of them. No required status check changes — `verify` is unaffected.
+
 ### Fixed
 - The signing key is now published to `keys.openpgp.org` as well as `keyserver.ubuntu.com`, and
   the documented verification command is confirmed to work against it from an empty keyring.

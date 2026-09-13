@@ -1,5 +1,6 @@
 # The worked Postgres example, split out of `verify`.
 #
+# Every @Tag("docker") example: the Postgres pair, and the live Formance run.
 # It needs Docker and takes minutes, and verify runs on every push and pull request, where
 # minutes are the difference between a check people wait for and one they learn to ignore.
 #
@@ -7,7 +8,7 @@
 # pull request can merge and break it. That is the trade — a fast gate on every change, and
 # this running on main straight after the merge, nightly, and on demand. If it goes red, it
 # goes red on main within minutes of the commit that did it, with the commit named.
-name: postgres
+name: examples
 
 on:
   push:
@@ -41,7 +42,7 @@ jobs:
       - name: Validate the Gradle wrapper
         uses: gradle/actions/wrapper-validation@0723195856401067f7a2779048b490ace7a47d7c   # v5
 
-      - name: Run the Postgres example
+      - name: Run the worked examples
         run: ./gradlew dockerTest --no-daemon --stacktrace
 
       # A green tick is not evidence the example ran: without Docker these tests skip, and
