@@ -12,6 +12,11 @@ dependencies {
     testImplementation(libs.testcontainers.postgres)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.postgresql.driver)
+
+    // The TigerBeetle calibration run. Test-only and necessarily so: the client ships a JNI
+    // native library, and no amount of convenience would justify putting that on the classpath
+    // of a module whose selling point is that it has nothing on it.
+    testImplementation(libs.tigerbeetle)
 }
 
 application {
