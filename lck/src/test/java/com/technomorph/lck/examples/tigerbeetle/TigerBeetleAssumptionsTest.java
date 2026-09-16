@@ -135,6 +135,45 @@ class TigerBeetleAssumptionsTest {
         assertEquals(-5_000, balance(funder, LEDGER_USD));
     }
 
+    @Test
+    @DisplayName("a failed transfer id is burned: TigerBeetle will not reconsider it, ever")
+    void aFailedIdIsBurned() {
+        byte[] guarded = account(LEDGER_USD, AccountFlags.DEBITS_MUST_NOT_EXCEED_CREDITS);
+        byte[] other = account(LEDGER_USD, AccountFlags.NONE);
+        byte[] funder = account(LEDGER_USD, AccountFlags.NONE);
+        byte[] transferId = id();
+
+        // Refused for want of funds.
+        CreateTransferResultBatch first = transfer(transferId, guarded, other, 5_000, LEDGER_USD);
+        assertTrue(first.next());
+        assertEquals(CreateTransferResult.ExceedsCredits, first.getResult());
+
+        // Fund the account so the very same transfer would now succeed on its merits.
+        assertEquals(0, transfer(id(), funder, guarded, 50_000, LEDGER_USD).getLength());
+
+        CreateTransferResultBatch retry = transfer(transferId, guarded, other, 5_000, LEDGER_USD);
+        assertTrue(retry.next());
+        assertEquals(CreateTransferResult.IdAlreadyFailed, retry.getResult(), """
+                A retry under the original id is refused even though the transfer would now \
+                apply. This is the fact that matters well beyond this adapter: it is direct \
+                evidence for the open question in rfcs/0002 -- whether a refused payment can be \
+                retried under its original key is a convention, not a correctness property, \
+                because the ledger with the strongest correctness claims in this space says no.""");
+
+        assertEquals(50_000, balance(guarded, LEDGER_USD),
+                "the burned retry must post nothing");
+    }
+
+    @Test
+    @DisplayName("IdAlreadyFailed is a different answer from Exists, and must stay different")
+    void failedAndAppliedAreDistinct() {
+        assertNotEquals(CreateTransferResult.Exists, CreateTransferResult.IdAlreadyFailed, """
+                Collapsing these two is the two-state idempotency defect INV-15 exists to catch: \
+                Exists means the transaction applied and the caller may stop, IdAlreadyFailed \
+                means it did not and never will. This adapter mapped both to DUPLICATE in its \
+                first draft, and INV-15 failed it -- which is the invariant working.""");
+    }
+
     // ---------------------------------------------------------------- cross-currency
 
     @Test
