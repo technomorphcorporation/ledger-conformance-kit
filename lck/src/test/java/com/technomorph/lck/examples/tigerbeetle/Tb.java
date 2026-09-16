@@ -45,15 +45,28 @@ final class Tb {
     }
 
     /**
-     * The jar on the test classpath is the authority on which protocol version we speak, so the
-     * container tag is checked against it rather than trusted. A silent mismatch would surface as
-     * an unreachable cluster, which reads as a broken environment rather than a wrong tag.
+     * Fails if the client jar and the container tag have drifted apart.
+     *
+     * <p>The first version of this check read {@code getImplementationVersion()} off the client's
+     * package and compared that. The tigerbeetle-java jar carries no {@code Implementation-Version}
+     * in its manifest, so that value is always null and the check always passed — a guard that
+     * looked like protection and was decoration, which is worse than not having one.
+     *
+     * <p>The version now comes from the Gradle version catalog, handed in by the {@code dockerTest}
+     * task, so what is compared is the jar actually on the classpath against the tag actually being
+     * started. An absent property means the build did not wire it and the check is off, which fails
+     * rather than passes quietly.
      */
     static void assertVersionsMatch() {
-        String jar = Client.class.getPackage().getImplementationVersion();
-        if (jar != null && !jar.equals(VERSION))
-            throw new IllegalStateException("tigerbeetle-java is " + jar + " but the container tag "
-                    + "is " + VERSION + ". Client and server must match; update both together.");
+        String catalog = System.getProperty("lck.tigerbeetle.version");
+        if (catalog == null)
+            throw new IllegalStateException("lck.tigerbeetle.version was not set, so the client "
+                    + "and container versions are unchecked. Run this through the dockerTest task, "
+                    + "which supplies it from the version catalog.");
+        if (!catalog.equals(VERSION))
+            throw new IllegalStateException("tigerbeetle-java is " + catalog + " in the version "
+                    + "catalog but Tb.VERSION is " + VERSION + ". Client and server move in "
+                    + "lockstep; update both together.");
     }
 
     Client start() {
@@ -85,6 +98,9 @@ final class Tb {
                 new String[]{ip + ":" + container.getMappedPort(PORT)});
         return client;
     }
+
+    /** The live client, for a test that needs a second adapter over the same cluster. */
+    Client client() { return client; }
 
     void close() {
         if (client != null) client.close();

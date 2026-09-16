@@ -106,23 +106,26 @@ class TigerBeetleConformanceTest {
     @Order(3)
     @DisplayName("journal() pages past one query's limit rather than stopping at it")
     void journalPagesToExhaustion() throws Exception {
-        adapter.reset();
+        // A dedicated adapter with a small page limit. At the production limit of 8189 this test
+        // would need 8190 transfers to reach a second page, and the version of it that posted 300
+        // never paged at all while its name claimed otherwise.
+        TigerBeetleLedgerAdapter paging = new TigerBeetleLedgerAdapter(tb.client(), 50);
 
-        int txns = 300;
+        int txns = 130;                             // three pages at a limit of 50
         for (int i = 0; i < txns; i++)
-            adapter.post(new com.technomorph.lck.spi.Model.Transaction(
+            paging.post(new com.technomorph.lck.spi.Model.Transaction(
                     "page-" + i,
                     List.of(com.technomorph.lck.spi.Model.Leg.debit("external:funding", 100),
                             com.technomorph.lck.spi.Model.Leg.credit("acct:paged", 100)),
                     "page-txn-" + i, true, java.util.Map.of()));
 
         // One transfer is a debit and a credit, so the kit sees two entries per transaction.
-        assertEquals(txns * 2, adapter.journal().size(),
+        assertEquals(txns * 2, paging.journal().size(),
                 "a short read here would look like INV-13 finding a ledger that cannot rebuild "
                         + "its own balances, rather than like a pagination bug in the harness");
-        assertEquals(txns * 100L, adapter.balance("acct:paged", "USD"));
-        assertEquals(adapter.balance("acct:paged", "USD"),
-                adapter.replayBalance("acct:paged", "USD"),
+        assertEquals(txns * 100L, paging.balance("acct:paged", "USD"));
+        assertEquals(paging.balance("acct:paged", "USD"),
+                paging.replayBalance("acct:paged", "USD"),
                 "the journal must rebuild the balance exactly across the page boundary");
     }
 
@@ -146,6 +149,55 @@ class TigerBeetleConformanceTest {
                 "after a reset the same account name must resolve to a new, empty account");
         assertTrue(adapter.journal().isEmpty(),
                 "the journal must show this generation only — TCK-00 depends on it");
+    }
+
+    @Test
+    @Order(5)
+    @DisplayName("a multi-leg transaction is atomic: the whole chain applies or none of it does")
+    void multiLegTransactionsAreAtomic() throws Exception {
+        // Every transaction the kit's own invariants post has exactly two legs, so the adapter's
+        // LINKED chain is never reached by the conformance run above. It is reachable through the
+        // SPI by anyone with a fee split or an FX leg, and untested code in an adapter whose only
+        // purpose is to be trustworthy is a liability. So it is tested here directly.
+        adapter.reset();
+        adapter.seed("acct:p", 50_000);
+        adapter.seed("acct:q", 50_000);
+
+        var applied = adapter.post(fourLegs("both-funded"));
+        assertEquals(com.technomorph.lck.spi.Model.PostStatus.APPLIED, applied.status(),
+                () -> "a balanced four-leg transaction should apply: " + applied.reason());
+        assertEquals(60_000, adapter.balance("acct:r", "USD"),
+                "both halves of the chain must have landed");
+
+        // Now the same shape with exactly one leg that cannot be funded. The funded leg must have
+        // ample balance: the first version of this test reused an acct:p already drawn down by the
+        // case above, so both legs failed on their own merits, LINKED was never what prevented the
+        // partial, and removing the flag left the test still passing.
+        adapter.reset();
+        adapter.seed("acct:p", 100_000);
+        long before = adapter.balance("acct:p", "USD");
+        assertEquals(100_000, before, "the funded leg must be comfortably fundable on its own");
+        var refused = adapter.post(new com.technomorph.lck.spi.Model.Transaction(
+                "chain-must-fail",
+                List.of(com.technomorph.lck.spi.Model.Leg.debit("acct:p", 30_000),
+                        com.technomorph.lck.spi.Model.Leg.debit("acct:z", 30_000),
+                        com.technomorph.lck.spi.Model.Leg.credit("acct:s", 60_000)),
+                "chain-must-fail-txn", false, java.util.Map.of()));
+
+        assertEquals(com.technomorph.lck.spi.Model.PostStatus.REJECTED, refused.status(),
+                () -> "the chain must be refused, not partly applied: " + refused.reason());
+        assertEquals(before, adapter.balance("acct:p", "USD"), """
+                acct:p's leg was fundable and must still not have been applied. A partially                 applied multi-leg transaction would show up as the ledger losing money, and                 would be the adapter's doing rather than the ledger's.""");
+        assertEquals(0, adapter.balance("acct:s", "USD"),
+                "nothing may have reached the credit side of a refused chain");
+    }
+
+    private static com.technomorph.lck.spi.Model.Transaction fourLegs(String key) {
+        return new com.technomorph.lck.spi.Model.Transaction(key,
+                List.of(com.technomorph.lck.spi.Model.Leg.debit("acct:p", 30_000),
+                        com.technomorph.lck.spi.Model.Leg.debit("acct:q", 30_000),
+                        com.technomorph.lck.spi.Model.Leg.credit("acct:r", 60_000)),
+                key + "-txn", false, java.util.Map.of());
     }
 
     private static void report(List<Result> results) throws Exception {

@@ -103,7 +103,7 @@ question worth solving.
 different ledgers and refuses it itself with `AccountsMustHaveTheSameLedger`. Where Formance
 forces the adapter to refuse, TigerBeetle does the refusing — so the same row means more here.
 
-## Two bugs this run found, both of them ours
+## Two bugs the run found, both of them ours
 
 Both failed on the first run and both were mine. The second is the more interesting.
 
@@ -121,6 +121,32 @@ That is precisely the two-state idempotency defect INV-15 exists to catch, commi
 adapter rather than in a ledger. **INV-15 caught it.** An invariant written against a defect
 observed in production found the same defect in new code written by someone who knew the defect
 well — which is a better argument for the suite than a clean table.
+
+## Three more found while auditing the harness
+
+The two above came from the run. These came from asking, afterwards, which parts of the harness
+had never actually been exercised — and all three were checks that looked like protection.
+
+**3. The version guard guarded nothing.** Client and server must be the same version, so
+`assertVersionsMatch` compared the container tag against the client's
+`getImplementationVersion()`. The tigerbeetle-java jar carries no `Implementation-Version` in its
+manifest, so that value is always null and the check always passed. The version now comes from the
+Gradle version catalog, handed to the test by the build, and an absent property fails rather than
+passing quietly. Confirmed by making the two disagree and watching it fire.
+
+**4. The pagination test never paged.** It posted 300 transfers against a query limit of 8189, so
+the loop ran once and the test's name was the only thing claiming otherwise. The adapter now takes
+a page limit as a test seam; the test uses 50 and posts 130, which spans three pages.
+
+**5. The atomicity test had no teeth, and only a mutation check found that.** Every transaction
+the kit's own invariants post has two legs, so the adapter's `LINKED` chain — which makes a
+multi-transfer submission all-or-nothing — is never reached by the conformance run. Untested code
+in an adapter whose only purpose is to be trustworthy is a liability, so it got a direct test.
+
+The first version of that test passed with `LINKED` removed. It reused an account already drawn
+down by the preceding case, so *both* legs failed on their own merits and the chain flag was never
+what prevented the partial application. Fixed so exactly one leg is unfundable, and re-checked:
+it now passes with the flag and fails without it.
 
 ## What this run does not show
 
@@ -168,10 +194,10 @@ else's ledger. Asserted in `resetIsolatesWithoutDeleting`.
 per-entry chain this adapter can hand over, and declaring it would make INV-03 verify hashes the
 adapter computed itself.
 
-## Nine behaviours pinned rather than assumed
+## Eleven behaviours pinned rather than assumed
 
 `TigerBeetleAssumptionsTest` asserts every claim the adapter makes about TigerBeetle against a
-live cluster, so a wrong claim fails in a test named after the claim instead of becoming a false
+live cluster, and `TigerBeetlePairingTest` covers the leg arithmetic without needing one, so a wrong claim fails in a test named after the claim instead of becoming a false
 finding.
 
 That mattered more here than for Formance. There is no HTTP to read with curl and no JSON to

@@ -23,6 +23,12 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   empty result batch means every event applied, because success is reported by absence.
 
 ### Fixed
+- Three checks in the TigerBeetle harness that looked like protection and were not: the
+  client/server version guard compared against a manifest field the jar does not carry, so it was
+  always null and always passed; the pagination test posted 300 transfers against a query limit of
+  8189 and never reached a second page; and the multi-leg atomicity test passed with the `LINKED`
+  flag removed, because it reused an account already drawn down and both legs failed on their own
+  merits. Each is now checked by making it fail on purpose first.
 - **INV-15 caught a two-state idempotency defect in our own new adapter.** The first draft mapped
   TigerBeetle's `IdAlreadyFailed` to `DUPLICATE`. TigerBeetle distinguishes `Exists` — the
   transaction applied, stop retrying — from `IdAlreadyFailed` — it did not apply and never will;

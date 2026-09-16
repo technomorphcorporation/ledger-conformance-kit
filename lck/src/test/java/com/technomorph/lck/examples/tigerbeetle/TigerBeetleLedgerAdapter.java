@@ -111,6 +111,7 @@ final class TigerBeetleLedgerAdapter implements LedgerAdapter {
     private static final int CODE = 1;
 
     private final Client client;
+    private final int pageLimit;
     private final String run;
     private final AtomicInteger generation = new AtomicInteger();
 
@@ -122,8 +123,19 @@ final class TigerBeetleLedgerAdapter implements LedgerAdapter {
     private final Map<String, String> accountNames = new ConcurrentHashMap<>();
     private final Map<Integer, String> currencies = new ConcurrentHashMap<>();
 
-    TigerBeetleLedgerAdapter(Client client) {
+    /** 8189 is the client's maximum for one query, and the right choice outside a test. */
+    TigerBeetleLedgerAdapter(Client client) { this(client, 8189); }
+
+    /**
+     * @param pageLimit transfers fetched per {@code queryTransfers} call. A test seam: at the
+     *                  production limit a paging test would need 8190 transfers to prove the loop
+     *                  works, so the test lowers it and forces the second page cheaply. The first
+     *                  version of that test posted 300 against a limit of 8189 and never paged at
+     *                  all, while claiming in its name that it did.
+     */
+    TigerBeetleLedgerAdapter(Client client, int pageLimit) {
         this.client = client;
+        this.pageLimit = pageLimit;
         this.run = Long.toUnsignedString(System.currentTimeMillis(), 36);
         rotate();
     }
@@ -256,7 +268,7 @@ final class TigerBeetleLedgerAdapter implements LedgerAdapter {
             QueryFilter f = new QueryFilter();
             f.setUserData128(salt);
             f.setTimestampMin(after + 1);
-            f.setLimit(8189);                       // the client's maximum for one query
+            f.setLimit(pageLimit);
             TransferBatch page = client.queryTransfers(f);
             if (page.getLength() == 0) break;
 
@@ -349,7 +361,7 @@ final class TigerBeetleLedgerAdapter implements LedgerAdapter {
 
     // ------------------------------------------------------------------ leg pairing
 
-    private record Pair(String debit, String debitCurrency,
+    record Pair(String debit, String debitCurrency,
                         String credit, String creditCurrency, long amount) { }
 
     /**

@@ -56,6 +56,12 @@ tasks.register<Test>("dockerTest") {
     classpath = sourceSets["test"].runtimeClasspath
     useJUnitPlatform { includeTags("docker") }
 
+    // The TigerBeetle client and server must be the same version -- a mismatch fails at the
+    // protocol, not at compile time, and reads as an unreachable cluster. Handing the catalog's
+    // version to the test lets it check the container tag against the jar it is actually running,
+    // so bumping one without the other fails with a message that says so.
+    systemProperty("lck.tigerbeetle.version", libs.versions.tigerbeetle.get())
+
     // Counted, not asserted through `filter { isFailOnNoMatchingTests }`, which governs
     // Gradle's --tests patterns and not JUnit Platform tag selection: with the tag misspelt
     // that setting passes a build that ran nothing. Verified by misspelling it.
