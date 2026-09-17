@@ -9,11 +9,13 @@
 # this running on main straight after the merge, nightly, and on demand. If it goes red, it
 # goes red on main within minutes of the commit that did it, with the commit named.
 #
-# One example per runner, deliberately. Run together on a single runner they compete for memory,
-# and the loser is whichever wants the most: a TigerBeetle replica opens a gigabyte-scale data
-# file and gets OOM-killed, which surfaces as a container that never becomes reachable rather
-# than as anything mentioning memory. A runner each costs nothing — they run in parallel — and
-# removes a whole class of failure that looks like a defect in the ledger under test.
+# One example per runner. Not what fixed the failure that prompted it — that was io_uring being
+# blocked by Docker's seccomp profile — but worth keeping on its own merits: three ledgers on one
+# runner compete for memory, a TigerBeetle replica opens a gigabyte-scale data file and is the one
+# that loses, and an OOM-killed container surfaces as one that never becomes reachable rather than
+# as anything mentioning memory. That was a real failure on a developer machine with other
+# containers running. A runner each costs nothing, since they run in parallel, and it keeps one
+# example's appetite from looking like another's defect.
 name: examples
 
 on:
