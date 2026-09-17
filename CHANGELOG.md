@@ -11,6 +11,34 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 ## [Unreleased]
 
 ### Added
+- **The calibration run: the suite against TigerBeetle.** Fourteen invariants held and one was not
+  applicable, on two seeds, against a live single-replica cluster — see `docs/tigerbeetle.md`. The
+  point of this run is not a finding but the absence of one: it is the strongest available evidence
+  that the suite does not manufacture findings, which is what licenses every finding reported
+  against any other ledger. Test-only and necessarily so, since the client carries a JNI native
+  library; there is no CLI flag for it, unlike Formance.
+- `TigerBeetleAssumptionsTest` pins every behaviour the adapter claims about TigerBeetle against a
+  real cluster, so a wrong claim fails in a test named after the claim rather than surfacing as a
+  false finding. Eleven behaviours, including the one a reasonable person assumes backwards: an
+  empty result batch means every event applied, because success is reported by absence.
+
+### Fixed
+- Three checks in the TigerBeetle harness that looked like protection and were not: the
+  client/server version guard compared against a manifest field the jar does not carry, so it was
+  always null and always passed; the pagination test posted 300 transfers against a query limit of
+  8189 and never reached a second page; and the multi-leg atomicity test passed with the `LINKED`
+  flag removed, because it reused an account already drawn down and both legs failed on their own
+  merits. Each is now checked by making it fail on purpose first.
+- **INV-15 caught a two-state idempotency defect in our own new adapter.** The first draft mapped
+  TigerBeetle's `IdAlreadyFailed` to `DUPLICATE`. TigerBeetle distinguishes `Exists` — the
+  transaction applied, stop retrying — from `IdAlreadyFailed` — it did not apply and never will;
+  collapsing them told 31 of 32 concurrent callers their payment had succeeded when nothing was
+  written. That is the exact defect INV-15 exists to catch, and it caught it.
+- The leg-pairing bug fixed in the Formance adapter was reintroduced in the TigerBeetle one, where
+  it dropped the unmatched part of an unbalanced transaction and applied the rest. Fixed in both;
+  the duplication is noted as wanting one shared, tested implementation.
+
+### Added
 - **A Formance Ledger adapter, and the first run of this kit against a ledger nobody here wrote.**
   `FormanceLedgerAdapter` speaks the v2 HTTP API directly, using only `java.net.http`, so the
   published jars still carry no dependencies. Against Formance v2.3.22 on two seeds, fourteen

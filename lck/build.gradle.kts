@@ -12,6 +12,11 @@ dependencies {
     testImplementation(libs.testcontainers.postgres)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.postgresql.driver)
+
+    // The TigerBeetle calibration run. Test-only and necessarily so: the client ships a JNI
+    // native library, and no amount of convenience would justify putting that on the classpath
+    // of a module whose selling point is that it has nothing on it.
+    testImplementation(libs.tigerbeetle)
 }
 
 application {
@@ -50,6 +55,12 @@ tasks.register<Test>("dockerTest") {
     testClassesDirs = sourceSets["test"].output.classesDirs
     classpath = sourceSets["test"].runtimeClasspath
     useJUnitPlatform { includeTags("docker") }
+
+    // The TigerBeetle client and server must be the same version -- a mismatch fails at the
+    // protocol, not at compile time, and reads as an unreachable cluster. Handing the catalog's
+    // version to the test lets it check the container tag against the jar it is actually running,
+    // so bumping one without the other fails with a message that says so.
+    systemProperty("lck.tigerbeetle.version", libs.versions.tigerbeetle.get())
 
     // Counted, not asserted through `filter { isFailOnNoMatchingTests }`, which governs
     // Gradle's --tests patterns and not JUnit Platform tag selection: with the tag misspelt
