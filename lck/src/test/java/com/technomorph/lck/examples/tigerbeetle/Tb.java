@@ -75,10 +75,10 @@ final class Tb {
      *
      * <p>TigerBeetle does its IO through {@code io_uring}, and Docker 25.0.0 and later block
      * {@code io_uring_setup}, {@code io_uring_enter} and {@code io_uring_register} in the default
-     * seccomp profile. Without this the replica cannot start, and the symptom is a container that
-     * never listens rather than an error mentioning syscalls — which is how this went green on a
-     * Mac, where Docker Desktop permits them, and red on CI, where it does not. TigerBeetle's own
-     * operating documentation prescribes exactly this flag.
+     * seccomp profile. Confirmed rather than assumed: removing this line and running the isolated
+     * job on CI produces, from the replica itself, {@code error(io): io_uring is not available}
+     * followed by {@code error: PermissionDenied}. It passes on a Mac either way, because Docker
+     * Desktop permits those syscalls — which is why this was green locally and red on CI.
      *
      * <p>Scope is one throwaway container in a test run: no ports beyond the mapped replica port,
      * a cluster id reserved for testing, and a data file that lives and dies with the container.

@@ -97,8 +97,11 @@ jobs:
                        "has it, so this run verified nothing despite passing")
           PY
 
-      # The container's own output is the only thing that distinguishes "blocked by seccomp" from
-      # "killed for memory" from "genuinely broken", and both look identical from outside.
+      # A backstop only. Testcontainers removes its containers as the test JVM exits, so by the
+      # time this runs the interesting one is usually gone and all that is left is the reaper --
+      # which is what happened the first time it was needed. The replica's own output is captured
+      # inside the test instead, and travels in the uploaded test-results below; that is what
+      # identified io_uring as the cause. This stays for containers Testcontainers did not make.
       - name: Container diagnostics on failure
         if: failure()
         run: |
