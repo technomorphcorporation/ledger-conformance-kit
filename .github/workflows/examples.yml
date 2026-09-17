@@ -1,6 +1,6 @@
-# The worked Postgres example, split out of `verify`.
+# Every @Tag("docker") example, split out of `verify`: the Postgres pair, the live Formance run,
+# and the TigerBeetle calibration run.
 #
-# Every @Tag("docker") example: the Postgres pair, and the live Formance run.
 # It needs Docker and takes minutes, and verify runs on every push and pull request, where
 # minutes are the difference between a check people wait for and one they learn to ignore.
 #
@@ -8,6 +8,14 @@
 # pull request can merge and break it. That is the trade — a fast gate on every change, and
 # this running on main straight after the merge, nightly, and on demand. If it goes red, it
 # goes red on main within minutes of the commit that did it, with the commit named.
+#
+# One example per runner. Not what fixed the failure that prompted it — that was io_uring being
+# blocked by Docker's seccomp profile — but worth keeping on its own merits: three ledgers on one
+# runner compete for memory, a TigerBeetle replica opens a gigabyte-scale data file and is the one
+# that loses, and an OOM-killed container surfaces as one that never becomes reachable rather than
+# as anything mentioning memory. That was a real failure on a developer machine with other
+# containers running. A runner each costs nothing, since they run in parallel, and it keeps one
+# example's appetite from looking like another's defect.
 name: examples
 
 on:
@@ -21,13 +29,28 @@ permissions:
   contents: read
 
 concurrency:
-  group: postgres-${{ github.ref }}
+  group: examples-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  postgres:
+  example:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
+    strategy:
+      # One example failing must not cancel the others: when something environmental breaks, the
+      # useful question is which of them survived it.
+      fail-fast: false
+      matrix:
+        include:
+          - name: postgres
+            filter: "*PostgresConformanceTest*"
+          - name: formance
+            filter: "*FormanceConformanceTest*"
+          - name: tigerbeetle
+            filter: "*TigerBeetle*"
+
+    name: ${{ matrix.name }}
 
     steps:
       - name: Check out
@@ -42,8 +65,14 @@ jobs:
       - name: Validate the Gradle wrapper
         uses: gradle/actions/wrapper-validation@0723195856401067f7a2779048b490ace7a47d7c   # v5
 
-      - name: Run the worked examples
-        run: ./gradlew dockerTest --no-daemon --stacktrace
+      - name: Show what the runner has to work with
+        run: |
+          echo "memory:"; free -h || true
+          echo "disk:";   df -h / || true
+          echo "docker:"; docker version --format '{{.Server.Version}}' || true
+
+      - name: Run the ${{ matrix.name }} example
+        run: ./gradlew dockerTest --tests '${{ matrix.filter }}' --no-daemon --stacktrace
 
       # A green tick is not evidence the example ran: without Docker these tests skip, and
       # skipping is correct on a contributor's laptop and meaningless here. The runner has
@@ -51,24 +80,47 @@ jobs:
       - name: Assert the example actually ran
         run: |
           set -euo pipefail
-          REPORT=$(find lck/build/test-results -name '*PostgresConformanceTest*.xml' | head -1)
-          test -n "$REPORT" || { echo "::error::no test report — the example did not run at all"; exit 1; }
-          python3 - "$REPORT" <<'PY'
+          shopt -s nullglob
+          REPORTS=(lck/build/test-results/dockerTest/*.xml)
+          test ${#REPORTS[@]} -gt 0 || { echo "::error::no test report — nothing ran at all"; exit 1; }
+          python3 - "${REPORTS[@]}" <<'PY'
           import sys, xml.etree.ElementTree as ET
-          r = ET.parse(sys.argv[1]).getroot()
-          tests, skipped = int(r.get('tests')), int(r.get('skipped'))
-          print(f"tests={tests} skipped={skipped} failures={r.get('failures')}")
-          if tests == 0:
-              sys.exit("::error::the report contains no tests")
-          if skipped == tests:
+          total = skipped = failures = 0
+          for path in sys.argv[1:]:
+              r = ET.parse(path).getroot()
+              total    += int(r.get('tests', 0))
+              skipped  += int(r.get('skipped', 0))
+              failures += int(r.get('failures', 0)) + int(r.get('errors', 0))
+          print(f"tests={total} skipped={skipped} failures={failures}")
+          if total == 0:
+              sys.exit("::error::the reports contain no tests")
+          if skipped == total:
               sys.exit("::error::every test skipped — Docker was unavailable on a runner that "
                        "has it, so this run verified nothing despite passing")
           PY
 
-      - name: Upload the before-and-after comparison
+      # A backstop only. Testcontainers removes its containers as the test JVM exits, so by the
+      # time this runs the interesting one is usually gone and all that is left is the reaper --
+      # which is what happened the first time it was needed. The replica's own output is captured
+      # inside the test instead, and travels in the uploaded test-results below; that is what
+      # identified io_uring as the cause. This stays for containers Testcontainers did not make.
+      - name: Container diagnostics on failure
+        if: failure()
+        run: |
+          docker ps -a --format '{{.Names}} | {{.Image}} | {{.Status}}' || true
+          for c in $(docker ps -aq); do
+            echo "::group::$c"
+            docker inspect "$c" --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} err={{.State.Error}}' || true
+            docker logs --tail 40 "$c" 2>&1 || true
+            echo "::endgroup::"
+          done
+
+      - name: Upload the reports
         if: always()
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4   # v5
         with:
-          name: postgres-conformance
-          path: lck/build/reports/lck/
+          name: ${{ matrix.name }}-conformance
+          path: |
+            lck/build/reports/lck/
+            lck/build/test-results/dockerTest/
           retention-days: 30
