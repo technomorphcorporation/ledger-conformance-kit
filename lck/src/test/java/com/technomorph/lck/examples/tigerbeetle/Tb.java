@@ -33,6 +33,7 @@ final class Tb {
 
     private static final int PORT = 3000;
 
+    private final StringBuilder log = new StringBuilder();
     private GenericContainer<?> container;
     private Client client;
 
@@ -69,13 +70,42 @@ final class Tb {
                     + "lockstep; update both together.");
     }
 
+    /**
+     * Relaxes seccomp for this container, which TigerBeetle needs and which is not optional.
+     *
+     * <p>TigerBeetle does its IO through {@code io_uring}, and Docker 25.0.0 and later block
+     * {@code io_uring_setup}, {@code io_uring_enter} and {@code io_uring_register} in the default
+     * seccomp profile. Without this the replica cannot start, and the symptom is a container that
+     * never listens rather than an error mentioning syscalls — which is how this went green on a
+     * Mac, where Docker Desktop permits them, and red on CI, where it does not. TigerBeetle's own
+     * operating documentation prescribes exactly this flag.
+     *
+     * <p>Scope is one throwaway container in a test run: no ports beyond the mapped replica port,
+     * a cluster id reserved for testing, and a data file that lives and dies with the container.
+     * A profile allowing only the three syscalls would be tighter, but it means carrying Docker's
+     * whole default profile in the tree to add three lines to it, and that copy would then rot
+     * against the real default.
+     */
+    private static final java.util.List<String> SECCOMP = java.util.List.of("seccomp=unconfined");
+
     Client start() {
         // The binary sits at /tigerbeetle and is not on PATH, so the shell entrypoint needs the
         // absolute path. format then exec start, so the server is PID 1 of the container and a
         // stop signal reaches it rather than the shell.
         container = new GenericContainer<>(
                 DockerImageName.parse("ghcr.io/tigerbeetle/tigerbeetle:" + VERSION))
-                .withCreateContainerCmdModifier(c -> c.withEntrypoint("sh"))
+                .withCreateContainerCmdModifier(c -> {
+                    c.withEntrypoint("sh");
+                    c.getHostConfig().withSecurityOpts(SECCOMP);
+                })
+                // Buffered rather than streamed. A startup failure otherwise surfaces as a
+                // wait-strategy timeout with an empty stacktrace and no clue why -- but a replica
+                // that cannot reach a peer retries in a tight loop, and printing every frame
+                // buries the run in thousands of identical warnings. So it is kept and only shown
+                // if starting fails.
+                .withLogConsumer(f -> {
+                    if (log.length() < 8_000) log.append(f.getUtf8String());
+                })
                 .withCommand("-c",
                         "/tigerbeetle format --development --cluster=0 --replica=0 "
                                 + "--replica-count=1 /tmp/0.tigerbeetle && "
@@ -83,7 +113,12 @@ final class Tb {
                                 + "--addresses=0.0.0.0:" + PORT + " /tmp/0.tigerbeetle")
                 .withExposedPorts(PORT)
                 .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofMinutes(2)));
-        container.start();
+        try {
+            container.start();
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("the TigerBeetle replica did not start. Its own output "
+                    + "follows, which is the only thing that explains why:\n" + log, e);
+        }
 
         // TigerBeetle's address parser takes an IP literal, not a hostname, and Testcontainers
         // hands back "localhost" on most machines. Passing that through fails inside the JNI
@@ -94,9 +129,27 @@ final class Tb {
         } catch (java.net.UnknownHostException e) {
             throw new IllegalStateException("could not resolve " + container.getHost(), e);
         }
+        // The wait strategy only proves the port was listening once. A replica that is then killed
+        // -- most often out of memory, since it opens a gigabyte-scale data file -- leaves the
+        // client retrying ConnectionRefused forever, because it has no connect timeout. That turns
+        // a dead container into a test that never finishes and never says why. Checking here costs
+        // a moment and converts it into an error naming the cause.
+        assertStillRunning();
+
         client = new Client(new byte[16],                       // cluster 0, as formatted above
                 new String[]{ip + ":" + container.getMappedPort(PORT)});
         return client;
+    }
+
+    private void assertStillRunning() {
+        var state = container.getCurrentContainerInfo().getState();
+        if (Boolean.TRUE.equals(state.getRunning())) return;
+        throw new IllegalStateException("the TigerBeetle replica started and then exited"
+                + " (exit=" + state.getExitCodeLong()
+                + (Boolean.TRUE.equals(state.getOOMKilled()) ? ", OOM-killed" : "")
+                + "). A replica needs room for a gigabyte-scale data file, so this is usually "
+                + "memory pressure from other containers on the same daemon. Its own output:\n"
+                + log);
     }
 
     /** The live client, for a test that needs a second adapter over the same cluster. */
