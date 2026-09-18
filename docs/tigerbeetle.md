@@ -30,14 +30,19 @@ calibration harness, not a feature.
 
 ## Result
 
-**Fourteen invariants held. One was not applicable. Nothing failed, on either seed.**
+**Thirteen invariants held. Two were not applicable. Nothing failed, on either seed.**
+
+> **Corrected on 18 September 2026.** This page first reported fourteen held and one not
+> applicable, and flagged INV-01 as a pass TigerBeetle had not earned. The adapter now reports
+> that as unmeasured instead of refusing the transaction itself, so the row says what the caveat
+> said. No verdict got worse.
 
 Same verdicts on both seeds with different amounts. The adapter also passed all nine TCK checks
 on the first attempt, which the Formance adapter did not.
 
 | Invariant | Result |
 |---|---|
-| INV-01 balanced transactions | pass — **see the caveat** |
+| INV-01 balanced transactions | *not applicable* — see below |
 | INV-02 journal append-only | pass |
 | INV-03 hash chain | *not applicable* |
 | INV-04 idempotent replay | pass |
@@ -81,23 +86,24 @@ while offering neither.
 That question was holding the RFC open pending review. It is now answered by a run rather than by
 an opinion, which is a better way to answer it.
 
-## The caveat on INV-01
+## Why INV-01 is unmeasured rather than passed
 
-**INV-01 reports a pass TigerBeetle did not earn**, in the same way INV-11 does for Formance.
+**TigerBeetle cannot express the transaction INV-01 submits**, so it was never asked. Until
+18 September 2026 this row said *pass*, with a caveat underneath explaining that it should not be
+read as one — which is a worse arrangement than the row simply being honest.
 
 The invariant submits a deliberately unbalanced transaction — debit 24.00 against a credit of
 23.00 — and expects refusal. A TigerBeetle transfer is balanced by construction: one amount,
 debited from one account and credited to another. An unbalanced transaction has no representation,
 so the adapter refuses it and the cluster is never asked.
 
-The outcome is right — money cannot be created this way in TigerBeetle, structurally — but the
-mechanism is not what the row implies. This is the same gap in the kit recorded in
-[the Formance run](formance.md): an adapter has no way to report *this ledger's model cannot
-express the transaction*, which is a third answer distinct from pass and fail, and the nearest
-available one flatters the ledger.
+The outcome is right — money cannot be created this way in TigerBeetle, structurally — but that
+is not something this run demonstrated, and the report should not have implied it did.
 
-Two ledgers have now hit it on different invariants, which moves it from a curiosity to a design
-question worth solving.
+Two ledgers hitting this on different invariants is what moved it from a curiosity to a fix. The
+adapter now throws `NotRepresentable` and the runner reports the invariant as not applicable with
+the reason attached. It also found an overstatement nobody had noticed: the Formance run had *two*
+unearned passes, not the one its write-up flagged.
 
 **INV-11, by contrast, is earned here.** TigerBeetle can express a transfer between accounts in
 different ledgers and refuses it itself with `AccountsMustHaveTheSameLedger`. Where Formance
@@ -154,7 +160,8 @@ it now passes with the flag and fails without it.
 - **One replica.** No consensus, no failover, no partition. TigerBeetle's most distinctive
   correctness machinery is in replicated operation, and none of it was exercised.
 - **No fault injection.** Nothing kills a process or partitions a network; that is v2.0 work.
-- **One invariant unmeasured.** `HASH_CHAIN` is not declared — see below.
+- **Two invariants unmeasured.** `HASH_CHAIN` is not declared — see below — and INV-01 could not
+  be submitted.
 - **One version.** 0.16.46.
 
 ## The mapping, and where it could be attacked

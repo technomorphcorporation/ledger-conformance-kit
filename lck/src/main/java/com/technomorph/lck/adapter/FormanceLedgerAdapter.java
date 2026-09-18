@@ -2,6 +2,7 @@ package com.technomorph.lck.adapter;
 
 import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.LedgerAdapter;
+import com.technomorph.lck.spi.NotRepresentable;
 import com.technomorph.lck.spi.Model.EntryType;
 import com.technomorph.lck.spi.Model.JournalEntry;
 import com.technomorph.lck.spi.Model.Leg;
@@ -184,14 +185,12 @@ public final class FormanceLedgerAdapter implements LedgerAdapter {
             // A Formance posting is single-asset and balanced by construction: source, destination,
             // one amount, one asset. A transaction whose legs do not balance within a currency has
             // no representation in that model at all, so there is nothing to send and nothing for
-            // the ledger to decide. Refusing here is the only honest option, but the reason has to
-            // say who refused — a reader must not take this for Formance having evaluated it and
-            // said no. See the note on INV-11 in docs/formance.md.
-            return PostResult.rejected(txn.transactionId(),
-                    "not representable in Formance's model: postings are single-asset and balanced "
-                            + "by construction, and these legs leave " + paired.unpaired
-                            + " with no counterparty in the same currency. The adapter refused this; "
-                            + "the ledger was not asked");
+            // the ledger to decide. This used to return a rejection, which made INV-11 report a
+            // pass Formance had not earned; the outcome was right and the mechanism was not.
+            throw new NotRepresentable(
+                    "a Formance posting is single-asset and balanced by construction, and these "
+                            + "legs leave " + paired.unpaired + " with no counterparty in the same "
+                            + "currency, so the transaction cannot be submitted at all");
 
         ensureLedger();
         String path = "/v2/" + enc(ledger) + "/transactions"

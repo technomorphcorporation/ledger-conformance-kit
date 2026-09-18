@@ -34,11 +34,18 @@ neither needed nor consulted here: this adapter declares its own.
 
 ## Result
 
-**Fourteen invariants held. One was not applicable. Nothing failed, on either seed.**
+**Twelve invariants held. Three were not applicable. Nothing failed, on either seed.**
+
+> **Corrected on 18 September 2026.** This page first reported fourteen held and one not
+> applicable. Two of those fourteen were passes Formance had not earned, and only one of them was
+> flagged. The adapter now reports a transaction the ledger cannot express as unmeasured rather
+> than refusing it itself, and INV-01 turned out to be in that category as well as INV-11 — which
+> the original write-up missed. No verdict got worse: two passes became not-applicable rows, and
+> nothing became a failure. The count is lower and the page is now true.
 
 | Invariant | Seed 42 | Seed 8823714 |
 |---|---|---|
-| INV-01 balanced transactions | pass | pass |
+| INV-01 balanced transactions | *not applicable* | *not applicable* |
 | INV-02 journal append-only | pass | pass |
 | INV-03 hash chain | *not applicable* | *not applicable* |
 | INV-04 idempotent replay | pass | pass |
@@ -48,7 +55,7 @@ neither needed nor consulted here: this adapter declares its own.
 | INV-08 read path agrees with journal | pass | pass |
 | INV-09 overdraft guard | pass (10 of 20, 10 refused) | pass |
 | INV-10 one-subunit transfers | pass (1000 of 1000) | pass |
-| INV-11 cross-currency | pass — **but read the caveat below** | pass |
+| INV-11 cross-currency | *not applicable* | *not applicable* |
 | INV-12 compensation | pass (4 original entries intact, 2 appended) | pass |
 | INV-13 balances rebuildable | pass | pass |
 | INV-14 per-account sequencing | pass | pass |
@@ -63,10 +70,11 @@ submissions of a key whose transaction could never be funded were all refused wi
 as already applied. That second one is the defect [RFC 0001](../rfcs/0001-duplicate-of-a-rejected-transaction.md)
 exists for, and Formance does not have it.
 
-## The caveat on INV-11, which matters more than the row
+## Why two rows are unmeasured rather than passed
 
-**INV-11 reports a pass that Formance did not earn, and would not have earned under any
-implementation.** It is recorded here rather than left in the table to be taken at face value.
+**Formance cannot express either transaction**, so it was never asked and has no opinion to
+report. That is now what the rows say. Until 18 September 2026 they said *pass*, which was true
+about the outcome and false about the mechanism.
 
 The invariant submits a deliberately malformed transaction — a USD debit closing a EUR credit,
 with no FX leg — and expects the ledger to refuse it. A Formance posting is single-asset and
@@ -74,22 +82,22 @@ balanced by construction: source, destination, one amount, one asset. A transact
 not balance within a currency **has no representation in that model at all**, so the adapter
 cannot send one, and the ledger never gets to decide.
 
-The adapter therefore refuses it locally and says so in the `PostResult` reason. The invariant
-sees a rejection and passes. The row is not wrong about the outcome — a client genuinely cannot
-book this against Formance — but it is wrong about the mechanism, and a reader who takes it as
-"Formance evaluated this and said no" has been misled by the table.
+INV-01 is the same shape: it submits a transaction debiting more than it credits, and a Formance
+posting has one amount, so there is nothing to send there either.
 
-This is a gap in the kit, not in Formance. There is currently no way for an adapter to report
-*this ledger's model cannot express the transaction*, which is a third thing distinct from pass
-and from fail, and the nearest available answer flatters the ledger. Capability gating solves the
-adjacent problem — a feature the ledger lacks — but not this one, where the data model makes the
-defect unrepresentable. Tracked as a design question rather than patched with a special case.
+The adapter used to refuse both locally and return a rejection, which the invariants read as the
+ledger having refused. It now throws `NotRepresentable`, and the runner reports the invariant as
+not applicable with the adapter's reason attached. Neither row is a pass, and neither is a
+failure: the question could not be put.
+
+Both outcomes remain correct — money cannot be created either way in Formance, structurally. What
+changed is that the report no longer claims Formance demonstrated that.
 
 ## What this run does not show
 
 - **It is not a security review, a performance benchmark, or an audit.** Fifteen correctness
   properties of the money path, under one workload, on one machine.
-- **One invariant was not measured at all.** `HASH_CHAIN` is not declared by this adapter — see
+- **Three invariants were not measured.** `HASH_CHAIN` is not declared by this adapter — see
   the next section. A not-applicable row is not a pass.
 - **No fault injection.** Nothing here kills a process, partitions a network, or restarts the
   ledger mid-transaction. Those are v2.0 work; see [ROADMAP.md](../ROADMAP.md).

@@ -2,6 +2,7 @@ package com.technomorph.lck.core;
 
 import com.technomorph.lck.spi.LedgerAdapter;
 import com.technomorph.lck.spi.Capability;
+import com.technomorph.lck.spi.NotRepresentable;
 import com.technomorph.lck.spi.Model;
 import com.technomorph.lck.spi.Model.*;
 
@@ -679,9 +680,17 @@ public final class Invariants {
             // OutOfMemoryError in the harness is not a defect in the client's ledger. Let it out.
             throw e;
         } catch (Throwable t) {
-            // An exception from the ledger under concurrent load is itself a finding. An
-            // exception from the network in front of it is not, and the two must not print
-            // the same way.
+            // Three different things arrive here and none of them may print the same way. An
+            // exception from the ledger under concurrent load is itself a finding. An exception
+            // from the network in front of it is not. And an adapter reporting that the ledger's
+            // model cannot express the transaction has said the question could not be put at all,
+            // which is neither a pass nor a failure: reporting it as either states something
+            // untrue about a ledger that was never asked.
+            NotRepresentable nr = notRepresentable(t);
+            if (nr != null)
+                return new Result(inv.id(), inv.title(), inv.severity(), Status.SKIP,
+                        "not measured: " + nr.getMessage(),
+                        inv.productionSymptom(), seed, ms(t0));
             return new Result(inv.id(), inv.title(), inv.severity(),
                     transportFailure(t) ? Status.INFRA : Status.ERROR,
                     describe(t), inv.productionSymptom(), seed, ms(t0));
@@ -696,6 +705,17 @@ public final class Invariants {
      * socket raises naturally. Business rejection cannot be confused with it, because TCK-04
      * already refuses an adapter that throws instead of returning REJECTED.
      */
+    /**
+     * The adapter's report that the ledger could not be asked, if it is anywhere in the chain.
+     * Walks the causes for the same reason {@link #transportFailure} does: an adapter may wrap it,
+     * and the classification has to survive being wrapped.
+     */
+    private static NotRepresentable notRepresentable(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause())
+            if (c instanceof NotRepresentable nr) return nr;
+        return null;
+    }
+
     private static boolean transportFailure(Throwable t) {
         for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause())
             if (c instanceof java.io.IOException) return true;

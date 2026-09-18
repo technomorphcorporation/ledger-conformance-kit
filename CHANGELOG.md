@@ -11,6 +11,17 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 ## [Unreleased]
 
 ### Added
+- **`NotRepresentable` in `lck-spi`: a third answer for an adapter, when the ledger's model cannot
+  express the transaction a check submits.** The runner reports the invariant as not applicable
+  with the adapter's reason, the same standing as an undeclared `Capability` — not a pass, not a
+  failure. Adding a type is additive, so this is a MINOR release and no existing adapter changes.
+
+  It exists because two ledgers hit the gap on different invariants and both reports overstated as
+  a result. A Formance posting and a TigerBeetle transfer are each balanced by construction, so an
+  unbalanced transaction cannot be submitted to either; the adapters refused locally and returned a
+  rejection, and the invariants read that as the ledger refusing. **Your report may show passes
+  becoming not-applicable rows.** Nothing becomes a failure, so this cannot turn a build red — it
+  can only stop a row claiming something your ledger never demonstrated.
 - **The calibration run: the suite against TigerBeetle.** Fourteen invariants held and one was not
   applicable, on two seeds, against a live single-replica cluster — see `docs/tigerbeetle.md`. The
   point of this run is not a finding but the absence of one: it is the strongest available evidence
