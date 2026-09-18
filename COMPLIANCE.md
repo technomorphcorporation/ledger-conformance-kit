@@ -85,7 +85,7 @@ Full inventory: `gradle/libs.versions.toml` — short enough to read in full, wh
   `maven-publish` and uploaded with `curl`, so the build that produces a zero-dependency
   artifact does not itself pull in a dependency tree to do it.
 
-1.0.0 and 1.1.0 are published, so the signing key, the upload and the Portal's validation are
+1.0.0, 1.1.0 and 1.2.0 are published, so the signing key, the upload and the Portal's validation are
 no longer untested claims: every artifact of all three modules carries a `.asc` that verifies
 against key `0DCF 5D5C 8A37 A283 54F9  CAB1 C50B AAE0 1537 C1B3`, which is published on
 both `keys.openpgp.org` and `keyserver.ubuntu.com`.
