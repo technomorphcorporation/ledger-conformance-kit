@@ -5,6 +5,11 @@ This governs paid conformance engagements run by Technomorph Corporation.
 **It does not apply to the tool.** The kit is Apache-2.0. Run it, fork it, and publish
 whatever you find without asking anyone.
 
+**Nor does it apply to our own unsolicited research.** Findings from running the kit against
+public software nobody asked us to test are governed by
+[`research-disclosure.md`](research-disclosure.md), which differs in nearly every mechanic — no
+client, no confidential identity, and no veto, because nobody bought one.
+
 It is published here because a protocol you cannot read is not a protocol. It is fixed,
 identical for every engagement, and not negotiated case by case — which is the only thing
 that makes it worth anything.

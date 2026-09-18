@@ -99,11 +99,21 @@ Notes behind the invariants. Useful whether or not you run the kit.
   multi-custodian reconciliation, and regulatory reporting off the same journal, with schema
   and the annotations about what breaks
 
+## Runs against real ledgers
+
+- [**Formance**](formance.md) — the v2 HTTP API, twelve invariants held and three not applicable
+- [**TigerBeetle**](tigerbeetle.md) — the calibration run, thirteen held and two not applicable
+
+Both clean. Every defect either run turned up was in this kit or its adapters, and each page says
+which.
+
 ## Project
 
 - [**Releasing**](releasing.md) — how a version is cut, and what is checked before it is
 - [**Publication protocol**](publication-protocol.md) — what is written about work done with
   the kit, and what is not
+- [**Research disclosure**](research-disclosure.md) — how findings against software nobody asked
+  us to test are handled: private first, no veto, and every failure treated as ours until ruled out
 - [Source, issues and the full README](https://github.com/technomorphcorporation/ledger-conformance-kit)
 
 ## What it does not do
