@@ -129,6 +129,33 @@ produces false findings that waste your engineers' time and your credibility. *(
 
 ---
 
+## When your ledger cannot express the transaction at all
+
+Some checks submit a transaction your ledger has no way to represent. The clearest case is a
+deliberately unbalanced one — INV-01 debits more than it credits — against a ledger whose write
+primitive moves a single amount from one account to another. There is nothing to send, so the
+ledger has no opinion, and both of the obvious things an adapter can do are wrong: returning
+`APPLIED` invents a success, and returning `rejected(...)` credits the ledger with a refusal it
+never made. The second is the tempting one, because the *outcome* is right — and it is how two
+run records here ended up overstating what had been demonstrated.
+
+Throw `NotRepresentable` instead:
+
+```java
+if (!unpaired.isEmpty())
+    throw new NotRepresentable("a transfer here is balanced by construction, and these legs "
+            + "leave " + unpaired + " with no counterparty");
+```
+
+The invariant is then reported as **not applicable**, with your message as the reason — the same
+standing as a check needing a `Capability` you have not declared. Not a pass, not a failure.
+
+**Only for genuinely inexpressible transactions.** If your ledger *could* accept the submission
+and chooses to refuse it, that is a rejection: return `rejected(...)` and let the finding stand.
+Reaching for `NotRepresentable` to quieten an invariant that is failing honestly turns a finding
+into silence on the adapter's word, which is the one thing the suite must never do. Write the
+message for somebody reading your report who will ask why a row is blank.
+
 ## Verify the adapter before you believe the findings
 
 ```bash

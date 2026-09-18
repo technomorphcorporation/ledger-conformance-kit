@@ -2,6 +2,7 @@ package com.technomorph.lck.examples.tigerbeetle;
 
 import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.LedgerAdapter;
+import com.technomorph.lck.spi.NotRepresentable;
 import com.technomorph.lck.spi.Model.EntryType;
 import com.technomorph.lck.spi.Model.JournalEntry;
 import com.technomorph.lck.spi.Model.Leg;
@@ -162,11 +163,14 @@ final class TigerBeetleLedgerAdapter implements LedgerAdapter {
         Paired paired = pair(txn.legs());
         List<Pair> pairs = paired.transfers();
         if (!paired.unpaired().isEmpty())
-            return PostResult.rejected(txn.transactionId(),
-                    "not representable in TigerBeetle's model: a transfer is balanced by "
-                            + "construction, and these legs leave " + paired.unpaired()
-                            + " with no counterparty. The adapter refused this; the cluster was "
-                            + "not asked. See docs/tigerbeetle.md on INV-01.");
+            // A TigerBeetle transfer moves one amount from one account to another, so an
+            // unbalanced transaction has no representation. This used to return a rejection, which
+            // made INV-01 report a pass the cluster had not earned.
+            throw new NotRepresentable(
+                    "a TigerBeetle transfer is balanced by construction -- one amount, one debit "
+                            + "account, one credit account -- and these legs leave "
+                            + paired.unpaired() + " with no counterparty, so the transaction "
+                            + "cannot be submitted at all");
         if (pairs.isEmpty())
             return PostResult.rejected(txn.transactionId(), "no legs to post");
 

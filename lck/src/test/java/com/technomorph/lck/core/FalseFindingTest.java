@@ -6,6 +6,7 @@ import com.technomorph.lck.core.Invariants.Status;
 import com.technomorph.lck.examples.ReferenceLedger;
 import com.technomorph.lck.spi.Capability;
 import com.technomorph.lck.spi.LedgerAdapter;
+import com.technomorph.lck.spi.NotRepresentable;
 import com.technomorph.lck.spi.Model.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -163,6 +164,63 @@ class FalseFindingTest {
         assertThrows(OutOfMemoryError.class, () -> Invariants.runOne(oom, byId("INV-06"), SEED),
                 "an OutOfMemoryError in the harness must not be recorded as a BLOCKER against "
                         + "the ledger under test");
+    }
+
+    // ------------------------------------------------------------------ not representable
+
+    @Test
+    @DisplayName("a transaction the ledger cannot express is not measured, rather than passed")
+    void notRepresentableIsNotAPass() {
+        LedgerAdapter cannotExpress = new Delegating() {
+            @Override public PostResult post(Transaction t) throws Exception {
+                if (t.legs().stream().mapToLong(l -> l.type() == EntryType.CREDIT
+                        ? l.amountSubunits() : -l.amountSubunits()).sum() != 0)
+                    throw new NotRepresentable("a transfer is balanced by construction here");
+                return inner.post(t);
+            }
+        };
+        Result r = Invariants.runOne(cannotExpress, byId("INV-01"), SEED);
+
+        assertEquals(Status.SKIP, r.status(), () ->
+                "INV-01 submits a deliberately unbalanced transaction. A ledger whose model cannot "
+                        + "express one was never asked, so this is unmeasured -- not a pass earned "
+                        + "by refusing: " + r.detail());
+        assertFalse(r.broke(), "an unasked question is not a finding");
+        assertTrue(r.detail().contains("balanced by construction"), () ->
+                "the adapter's reason must reach the report, or the row says nothing: " + r.detail());
+    }
+
+    @Test
+    @DisplayName("NotRepresentable is honoured through a wrapper, as transport failures are")
+    void notRepresentableSurvivesWrapping() {
+        LedgerAdapter wrapped = new Delegating() {
+            @Override public PostResult post(Transaction t) throws Exception {
+                throw new IllegalStateException("adapter wrapped it",
+                        new NotRepresentable("no representation for this shape"));
+            }
+        };
+        Result r = Invariants.runOne(wrapped, byId("INV-01"), SEED);
+
+        assertEquals(Status.SKIP, r.status(), () ->
+                "an adapter may wrap the signal on its way out, and the classification has to "
+                        + "survive that or it becomes an ERROR against the ledger: " + r.detail());
+    }
+
+    @Test
+    @DisplayName("it must not be reachable for a transaction the ledger simply refuses")
+    void aRefusalIsStillAFinding() {
+        // The guard against the obvious abuse: throwing NotRepresentable instead of returning
+        // REJECTED would convert any inconvenient finding into silence.
+        LedgerAdapter overdrawing = new Delegating() {
+            @Override public PostResult post(Transaction t) throws Exception {
+                return inner.post(new Transaction(t.idempotencyKey(), t.legs(),
+                        t.transactionId(), true, t.metadata()));
+            }
+        };
+        Result r = Invariants.runOne(overdrawing, byId("INV-09"), SEED);
+
+        assertEquals(Status.FAIL, r.status(),
+                "an account driven negative is a finding, and no adapter signal may soften it");
     }
 
     // ------------------------------------------------------------------ fixtures

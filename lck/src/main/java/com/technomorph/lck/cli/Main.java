@@ -148,8 +148,13 @@ public final class Main {
                     "-".repeat(104), held, broke, skip,
                     infra == 0 ? "" : " · unreachable " + infra);
             if (skip > 0)
-                System.out.printf("  %d invariant(s) not applicable — the adapter declares no "
-                        + "matching capability. Add --capabilities to run them.%n", skip);
+                // The reason is on the row, so do not assert one here. There are two, and they are
+                // not interchangeable: a capability the adapter has not declared, or a transaction
+                // the ledger's model cannot express. The --capabilities hint only helps the first,
+                // and only for the HTTP adapter -- a native adapter declares its own.
+                System.out.printf("  %d invariant(s) not applicable — each row carries why, and "
+                        + "none of them passed. For the HTTP adapter an undeclared capability is "
+                        + "the usual reason; --capabilities runs those.%n", skip);
         }
         Path dir = Path.of(o.out);
         Files.createDirectories(dir);
