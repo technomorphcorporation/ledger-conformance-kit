@@ -10,6 +10,20 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
+### Added
+- **A run against the double-entry pattern the widely-copied PostgreSQL tutorials teach**, in
+  `docs/tutorial-pattern.md`. Eight invariants held, four broke, three were not applicable — and
+  the expectation going in was wrong in a way worth publishing. The concurrency failures were not
+  the ones that happened: the pattern does not store balances, so there is no read-modify-write and
+  the whole lost-update class has nowhere to occur. What fails is validation. There is no
+  idempotency concept at all, so one key submitted sixty-four times charges the customer sixty-four
+  times; and nothing in the schema requires a transaction to balance or to stay in one currency.
+- `ConstrainedTutorialLedger`: the same pattern with two schema changes and no application changes,
+  holding all twelve applicable invariants. A unique index so an idempotency key means something,
+  and a `DEFERRABLE INITIALLY DEFERRED` constraint trigger so a transaction has to balance per
+  currency. The remedy is asserted by a test that names each of the four, so the report rests on a
+  run rather than on a claim.
+
 ## [1.2.0] — 2026-09-18
 
 A MINOR because `lck-spi` gains a type, not because the suite gained a check: there is no new

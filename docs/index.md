@@ -103,9 +103,12 @@ Notes behind the invariants. Useful whether or not you run the kit.
 
 - [**Formance**](formance.md) — the v2 HTTP API, twelve invariants held and three not applicable
 - [**TigerBeetle**](tigerbeetle.md) — the calibration run, thirteen held and two not applicable
+- [**The pattern everyone copies**](tutorial-pattern.md) — the double-entry schema from the
+  widely-circulated PostgreSQL tutorials: eight held, four broke, and two DDL statements close all
+  four. The concurrency failures everyone expects are not the ones that happen
 
-Both clean. Every defect either run turned up was in this kit or its adapters, and each page says
-which.
+The first two are clean, and every defect they turned up was in this kit or its adapters — each
+page says which. The third is not a product: it is a pattern, implemented here and measured.
 
 ## Project
 
