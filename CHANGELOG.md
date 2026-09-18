@@ -10,6 +10,15 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
+### Changed
+- **Every report now states what the run did not test.** The site said it and the RFCs said it,
+  but the HTML and JSON a client circulates said nothing — so the limitations were legible to
+  whoever evaluated the kit and invisible to whoever received its output. An absent limitation
+  reads as a claim there is none. Both formats now carry the scope: one workload per invariant, no
+  fault injection, no serializability checking, and what a not-applicable row means — either an
+  undeclared capability, or a transaction the ledger's model cannot express, with each row saying
+  which. Anything parsing the JSON gains a `scope` object; no existing field moved.
+
 ### Added
 - **`NotRepresentable` in `lck-spi`: a third answer for an adapter, when the ledger's model cannot
   express the transaction a check submits.** The runner reports the invariant as not applicable
