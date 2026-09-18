@@ -10,14 +10,15 @@ Semantic versioning, with `lck-spi` treated as the client contract.
 
 ## [Unreleased]
 
-### Changed
-- **Every report now states what the run did not test.** The site said it and the RFCs said it,
-  but the HTML and JSON a client circulates said nothing — so the limitations were legible to
-  whoever evaluated the kit and invisible to whoever received its output. An absent limitation
-  reads as a claim there is none. Both formats now carry the scope: one workload per invariant, no
-  fault injection, no serializability checking, and what a not-applicable row means — either an
-  undeclared capability, or a transaction the ledger's model cannot express, with each row saying
-  which. Anything parsing the JSON gains a `scope` object; no existing field moved.
+## [1.2.0] — 2026-09-18
+
+A MINOR because `lck-spi` gains a type, not because the suite gained a check: there is no new
+invariant here, so **this release cannot turn your build red**. What it can do is stop a row
+claiming something your ledger never demonstrated — an adapter can now report that the ledger's
+model could not express a transaction, and such rows move from passing to not applicable.
+
+The two runs against real ledgers were re-published with lower counts for that reason, and both
+pages say so with a date rather than quietly renumbering.
 
 ### Added
 - **`NotRepresentable` in `lck-spi`: a third answer for an adapter, when the ledger's model cannot
@@ -31,8 +32,8 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   rejection, and the invariants read that as the ledger refusing. **Your report may show passes
   becoming not-applicable rows.** Nothing becomes a failure, so this cannot turn a build red — it
   can only stop a row claiming something your ledger never demonstrated.
-- **The calibration run: the suite against TigerBeetle.** Fourteen invariants held and one was not
-  applicable, on two seeds, against a live single-replica cluster — see `docs/tigerbeetle.md`. The
+- **The calibration run: the suite against TigerBeetle.** Thirteen invariants held and two were
+  not applicable, on two seeds, against a live single-replica cluster — see `docs/tigerbeetle.md`. The
   point of this run is not a finding but the absence of one: it is the strongest available evidence
   that the suite does not manufacture findings, which is what licenses every finding reported
   against any other ledger. Test-only and necessarily so, since the client carries a JNI native
@@ -41,6 +42,33 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   real cluster, so a wrong claim fails in a test named after the claim rather than surfacing as a
   false finding. Eleven behaviours, including the one a reasonable person assumes backwards: an
   empty result batch means every event applied, because success is reported by absence.
+
+- **A Formance Ledger adapter, and the first run of this kit against a ledger nobody here wrote.**
+  `FormanceLedgerAdapter` speaks the v2 HTTP API directly, using only `java.net.http`, so the
+  published jars still carry no dependencies. Against Formance v2.3.22 on two seeds, twelve
+  invariants held and three were not applicable — see `docs/formance.md`, which also records the one
+  row that reports a pass the ledger did not earn, four bugs the run found in our own adapter,
+  and what the run does not show. Test-only in the sense that nothing about it is required to use
+  the kit; the adapter itself ships.
+- `FormancePostingsTest` asserts the one place the adapter chooses rather than translates: the kit
+  models a transaction as independent debit and credit legs, Formance as directed postings, and
+  across eight hundred generated transactions every account must move exactly what its legs said.
+
+### Changed
+- **Every report now states what the run did not test.** The site said it and the RFCs said it,
+  but the HTML and JSON a client circulates said nothing — so the limitations were legible to
+  whoever evaluated the kit and invisible to whoever received its output. An absent limitation
+  reads as a claim there is none. Both formats now carry the scope: one workload per invariant, no
+  fault injection, no serializability checking, and what a not-applicable row means — either an
+  undeclared capability, or a transaction the ledger's model cannot express, with each row saying
+  which. Anything parsing the JSON gains a `scope` object; no existing field moved.
+
+- `lck run|tck --adapter formance:http://host:port` reaches the Formance adapter from the command
+  line. A bare `http://` URL still selects the universal adapter, which expects four `/_lck/`
+  endpoints mounted in your own service — pointed at a Formance endpoint it answers with 404s that
+  look like a broken ledger rather than the wrong adapter.
+- The `postgres` workflow is now `examples`, because `dockerTest` runs every `@Tag("docker")`
+  example and there are two of them. No required status check changes — `verify` is unaffected.
 
 ### Fixed
 - Three checks in the TigerBeetle harness that looked like protection and were not: the
@@ -58,27 +86,6 @@ Semantic versioning, with `lck-spi` treated as the client contract.
   it dropped the unmatched part of an unbalanced transaction and applied the rest. Fixed in both;
   the duplication is noted as wanting one shared, tested implementation.
 
-### Added
-- **A Formance Ledger adapter, and the first run of this kit against a ledger nobody here wrote.**
-  `FormanceLedgerAdapter` speaks the v2 HTTP API directly, using only `java.net.http`, so the
-  published jars still carry no dependencies. Against Formance v2.3.22 on two seeds, fourteen
-  invariants held and one was not applicable — see `docs/formance.md`, which also records the one
-  row that reports a pass the ledger did not earn, four bugs the run found in our own adapter,
-  and what the run does not show. Test-only in the sense that nothing about it is required to use
-  the kit; the adapter itself ships.
-- `FormancePostingsTest` asserts the one place the adapter chooses rather than translates: the kit
-  models a transaction as independent debit and credit legs, Formance as directed postings, and
-  across eight hundred generated transactions every account must move exactly what its legs said.
-
-### Changed
-- `lck run|tck --adapter formance:http://host:port` reaches the Formance adapter from the command
-  line. A bare `http://` URL still selects the universal adapter, which expects four `/_lck/`
-  endpoints mounted in your own service — pointed at a Formance endpoint it answers with 404s that
-  look like a broken ledger rather than the wrong adapter.
-- The `postgres` workflow is now `examples`, because `dockerTest` runs every `@Tag("docker")`
-  example and there are two of them. No required status check changes — `verify` is unaffected.
-
-### Fixed
 - The signing key is now published to `keys.openpgp.org` as well as `keyserver.ubuntu.com`, and
   the documented verification command is confirmed to work against it from an empty keyring.
   Until now the key was absent there, and an absent key on that host does not fail cleanly: the

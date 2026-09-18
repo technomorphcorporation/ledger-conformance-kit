@@ -56,7 +56,7 @@ You compile against **one artifact with zero dependencies**, targeting **Java 17
 team still on 17 can implement an adapter.
 
 ```kotlin
-testImplementation("io.github.technomorphcorporation:lck-junit5:1.1.0")
+testImplementation("io.github.technomorphcorporation:lck-junit5:1.2.0")
 ```
 
 That is the whole install: `lck-junit5` brings `lck-spi`, the artifact your adapter implements.
