@@ -33,7 +33,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The matrix below is a hand-maintained list, and a hand-maintained list of tests to run is a
+  # list that silently stops covering things. TutorialPatternTest was merged matching none of the
+  # filters, so the run an entire published report rests on never executed here at all -- it had
+  # only ever run on a laptop. This job makes that impossible to repeat: every @Tag("docker") class
+  # in the tree must be matched by some filter, or the workflow fails before running anything.
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+
+      - name: Every docker-tagged test is covered by a matrix filter
+        run: |
+          set -euo pipefail
+          # The filters, read from this file rather than restated, so the two cannot drift.
+          # Anchored to the start of the line so this does not also match the
+          # pattern on this very line: the matrix entries are the only 'filter:'
+          # that begins a line. Without the anchor the guard reads its own source
+          # and treats fragments of this regex as filters.
+          grep -oE '^[[:space:]]+filter: "[^"]+"' .github/workflows/examples.yml | sed -E 's/.*filter: "(.*)"/\1/' > /tmp/filters.txt
+          grep -rl '@Tag("docker")' lck/src/test --include='*.java'             | xargs -n1 basename | sed 's/\.java$//' | sort -u > /tmp/classes.txt
+          echo "filters:"; sed 's/^/  /' /tmp/filters.txt
+          echo "docker-tagged classes:"; sed 's/^/  /' /tmp/classes.txt
+          missing=0
+          while read -r cls; do
+            covered=0
+            while read -r f; do
+              # A Gradle --tests pattern, as a shell glob.
+              case "$cls" in $f) covered=1; break;; esac
+            done < /tmp/filters.txt
+            if [ "$covered" -eq 0 ]; then
+              echo "::error::$cls is @Tag(\"docker\") but no matrix filter selects it, so it never runs here"
+              missing=1
+            fi
+          done < /tmp/classes.txt
+          test "$missing" -eq 0
+          echo "every docker-tagged class is selected by some job"
+
   example:
+    needs: coverage
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -49,6 +89,8 @@ jobs:
             filter: "*FormanceConformanceTest*"
           - name: tigerbeetle
             filter: "*TigerBeetle*"
+          - name: tutorial
+            filter: "*TutorialPatternTest*"
 
     name: ${{ matrix.name }}
 
