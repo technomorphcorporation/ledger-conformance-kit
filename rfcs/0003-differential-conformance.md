@@ -76,18 +76,44 @@ deterministic, so the final states must match **exactly**: every balance per acc
 and the journal projection.
 
 The comparison is direct. For every account and currency either side touched, read `balance()`
-from both and compare; then compare the two `journal()` projections entry by entry. Three
-differences are possible and each is reported with its money impact per currency, in minor
-units, never summed across currencies:
+from both and compare; then compare the two `journal()` projections.
 
-| Difference | Reported as |
-|---|---|
-| A balance differs | `BALANCE`, with both figures and the delta |
-| An entry the baseline has and the candidate does not | `MISSING`, with the amount |
-| An entry the candidate has and the baseline does not | `EXTRA`, with the amount |
+A union of accounts is used rather than the baseline's set alone, so a candidate that invents an
+account is a difference rather than something nobody looked for.
 
-A union of accounts is used rather than the baseline's set alone, so a candidate that invents
-an account is a difference rather than something nobody looked for.
+**Matching journal entries needs care, because entry ids are not comparable.** Two ledgers assign
+their own ids — the Formance adapter reports Formance's numeric transaction id, the TigerBeetle one
+reports a u128 — and `JournalEntry.transactionId` is likewise the ledger's own value, not the kit's.
+Nothing in the adapter contract says otherwise, so a comparison keyed on either id compares nothing.
+
+What *is* available is enough:
+
+1. **Group** entries by their `transactionId`. The value differs between ledgers but it groups
+   correctly *within* each one, which is all this step needs.
+2. **Order** the groups by first appearance in `journal()`. TCK-05 already requires commit order,
+   and serial mode applies one transaction at a time, so the *n*th group on each side is the same
+   submitted transaction. This is why DIF-04 is serial-only: concurrently, commit order is the
+   race's to decide.
+3. **Compare** each matched pair as a multiset of `(account, currency, amount, direction)` —
+   never as a sequence, because the order of legs within one transaction is not meaningful.
+
+Four differences are possible, each reported with its money impact per currency, in minor units,
+never summed across currencies:
+
+| Difference | Reported as | Severity |
+|---|---|---|
+| A balance differs | `BALANCE`, with both figures and the delta | BLOCKER |
+| A posting the baseline has and the candidate does not | `MISSING`, with the amount | BLOCKER |
+| A posting the candidate has and the baseline does not | `EXTRA`, with the amount | BLOCKER |
+| Different postings, identical net effect per account and currency | `GRANULARITY` | MAJOR |
+
+**`GRANULARITY` is the row that stops this reporting a difference that is not one.** A candidate
+may split or combine postings — netting two legs against one account, or booking a fee separately —
+and record exactly the same movement of money. The multisets differ and no money does. Failing that
+as `MISSING` plus `EXTRA` would be a finding about representation dressed up as a finding about
+value, which is the mistake INV-12 already declines to make when it refuses to pin an entry count.
+So the net effect per account and currency is computed first: equal nets with unequal postings is
+`GRANULARITY` and MAJOR; unequal nets is `MISSING`, `EXTRA` or `BALANCE` and BLOCKER.
 
 **Concurrent mode.** The invariants run as they do today, on both systems. Exact amounts are
 expected to differ between runs, so the comparison is on **outcome class** per invariant — held,
@@ -102,22 +128,33 @@ makes: what is stable is *which* invariants break.
 | Invariant outcome | broke | held | Improvement — informational |
 | Invariant outcome | held | not applicable | **Capability loss** — MAJOR |
 | Capability declared | yes | no | **Capability loss** — MAJOR |
-| Serial final state | — | — | Every difference, classified per RFC 0003 |
-| Rejection behaviour | rejected | applied | **Regression** — BLOCKER |
-| Rejection behaviour | applied | rejected | **Divergence** — MAJOR |
+| Serial final state | — | — | Every difference, classified as in §2: `BALANCE`, `MISSING`, `EXTRA`, `GRANULARITY` |
+| Rejection behaviour, **serial only** | rejected | applied | **Regression** — BLOCKER |
+| Rejection behaviour, **serial only** | applied | rejected | **Divergence** — MAJOR |
+| Rejection count, concurrent | *n* refused | *m* refused | Reported as observation, never asserted |
 
 The rejection comparison matters: a candidate that applies a transaction the baseline refused has
 changed a business outcome, even if every invariant still holds.
+
+**It is restricted to serial mode, and that restriction is load-bearing.** Under concurrency the
+race decides *which* transactions are refused: in an overdraft drain the balance fixes how many of
+twenty withdrawals can succeed, but not which ten, and a ledger at SERIALIZABLE may refuse a
+different number on every run. Comparing the refused *set* concurrently would report divergences
+that are the scheduler's doing. Comparing the refused *count* is tempting and still wrong for the
+same reason — a conservative candidate that retries internally is not diverging. So concurrently
+the counts are printed and nothing is asserted on them, which is what `Invariants.Tally` already
+does for a single system.
 
 ### 4. The checks
 
 | Ref | Check | Severity |
 |---|---|---|
+| DIF-00 | The two adapters are not the same store | BLOCKER — refuses the run |
 | DIF-01 | No invariant that held on the baseline breaks on the candidate | BLOCKER |
 | DIF-02 | The candidate declares every capability the baseline declares | MAJOR |
 | DIF-03 | Under the serial workload, final balances agree per account and currency, over the union of accounts either side touched | BLOCKER |
-| DIF-04 | Under the serial workload, the journal projections agree entry by entry | BLOCKER |
-| DIF-05 | Both systems accept and reject the same transactions | BLOCKER |
+| DIF-04 | Under the serial workload, matched transaction groups carry the same postings, or differ only in granularity | BLOCKER |
+| DIF-05 | **Under the serial workload**, both systems accept and reject the same transactions | BLOCKER |
 
 ### 5. What a finding says
 
@@ -139,7 +176,11 @@ Differential conformance reuses the existing mutant corpus, which already declar
 mutant, the exact invariants it should break.
 
 **No false positives.**
-- **P-01** baseline = reference, candidate = reference → zero differences in both modes.
+- **P-01** baseline = reference, candidate = reference → zero differences in both modes. Note this
+  fixture must point the two at *separate instances* of the reference ledger, or DIF-00 refuses it —
+  which is the fixture working.
+- **P-00** baseline and candidate sharing one store → DIF-00 refuses the run and names the reason.
+  The inverse of every other fixture here: a clean report is the failure mode.
 - **P-02** baseline = reference, candidate = reference with a different, equivalent storage
   encoding → zero differences. This proves the comparison is on behaviour, not representation.
 
@@ -182,7 +223,26 @@ enforced on every push — so it cannot drift from the invariants it compares.
    does: scratch copies only, provenance stated in the report, and TCK-00's refusal of a non-empty
    environment doing real work. Raised here so it is on the record, and deliberately not designed
    here.
-4. **Vacuity.** If both adapters wrap the same underlying store — a plausible mistake during a
-   migration rehearsal — every check passes and the run means nothing. The kit has the same
-   problem on INV-08 and INV-13 against a ledger whose balance *is* its journal projection. Worth
-   solving once, for both.
+4. ~~Vacuity.~~ **Resolved: a sentinel, before anything else runs.** If both adapters point at the
+   same store — a plausible mistake during a migration rehearsal, where the candidate is often
+   configured by copying the baseline's settings — then every check passes and the run means
+   nothing. A clean differential report is the most dangerous possible output of this
+   misconfiguration, because it is exactly what a team hopes to see.
+
+   So: post one marker transaction through the baseline, then read it back through the candidate.
+   If the candidate can see it, the two are the same store and the run **refuses to start**, with
+   that as the reason. It costs one transaction, needs no new API, and converts a silent false
+   assurance into a refusal — the same shape as TCK-00 refusing a non-empty environment rather
+   than wiping it.
+
+   Added as **DIF-00**, numbered to run before DIF-01, and asserted by a fixture: baseline and
+   candidate pointed at one store must refuse, and must name the reason.
+
+   **This does not transfer to INV-08 and INV-13**, and it is worth saying why rather than
+   assuming it does. There the two readings come from one adapter, so a marker written once is
+   visible to both paths whether or not they are independent — a ledger whose `balance()` is a
+   `SUM` over its own journal passes the sentinel and is still vacuous. Detecting that needs the
+   adapter to say so, which is a separate proposal.
+5. **Should the adapter contract require `journal()` to carry the kit's own `transactionId`?** It
+   would make §2's matching trivial and removes a whole class of ambiguity. It is also a contract
+   change needing a TCK check, and both shipped adapters would have to change. Raised, not decided.

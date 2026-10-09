@@ -12,7 +12,7 @@
 
 ## Summary
 
-Every run — single-system, reconciliation or differential — can emit an **evidence pack**: one
+Every run — single-system or differential — can emit an **evidence pack**: one
 directory containing a human-readable report, a machine-readable result, the run's full context, an
 explicit statement of what was *not* tested, and a manifest of hashes so anyone can confirm nothing
 was altered after the run.
@@ -59,10 +59,10 @@ lck-evidence-<run-id>/
 - kit version and the git commit it was built from
 - adapter names and versions, and the capabilities each declared
 - adapter TCK result for each adapter
-- seed, run mode, scope (for reconciliation), start and end time
+- seed, run mode, start and end time
 - an operator-supplied environment label — never inferred, so a pack cannot accidentally claim to
   describe production
-- for reconciliation: the full declared mapping, every ignored field, and every tolerance with its
+- for a differential run: both adapter names, and which was baseline and which candidate, with
   justification
 
 ### 3. `not-tested.md` — the section that makes the rest credible
@@ -70,7 +70,7 @@ lck-evidence-<run-id>/
 Generated, not hand-written. It always lists:
 - every invariant or check reported **not applicable**, with the capability it needed
 - every check reported **unreachable**
-- every ignored field and declared tolerance (reconciliation)
+- for a differential run, which checks were serial-only and therefore not asserted concurrently
 - the standing limits of the kit: no performance, no security, no assessment of the accounting
   model, no process killed and no network partitioned unless a later RFC adds fault injection
 - the seed caveat for any concurrency finding
@@ -96,7 +96,7 @@ Generated text in the pack:
 - says **held**, **broke**, **not applicable**, **unreachable** — never "passed certification",
   "compliant" or "verified correct"
 - states money per currency in minor units, never summed across currencies
-- names the scope and environment label in the first lines of `report.md`
+- names the environment label in the first lines of `report.md`
 
 ---
 
