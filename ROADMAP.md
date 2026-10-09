@@ -78,3 +78,10 @@ could declare while no invariant exercised it was a promise with no test behind 
 - **A SaaS dashboard.** The kit is an asset, not a product. Hosting findings would make
   every security review harder for no gain.
 - **Weakening an invariant so more ledgers pass.** The finding is the product.
+- **Reconciling two systems against each other.** A real and separate problem — does the ledger
+  match the bank statement, the processor file, the system being migrated away from — and a
+  different question from whether one ledger is internally correct. It needs engine connectors,
+  which is incompatible with the zero-dependency guarantee `complianceCheck` enforces here, and a
+  second SPI whose design will churn has no business sharing a release lifecycle with
+  `LedgerAdapter`. Being designed separately. What *is* in scope is comparing two ledgers through
+  the adapter they both already implement — see `rfcs/0003`.
