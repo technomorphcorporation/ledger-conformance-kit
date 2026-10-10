@@ -26,6 +26,9 @@ process exercised for real by INV-15.
   every invariant, but the corpus is still checked against one ledger, so whether INV-08 and
   INV-13 are genuinely distinct or the same assertion at two scales remains open
 
+**Proposed:** INV-16, a claim that outlives its transaction —
+[`rfcs/0002`](rfcs/0002-a-claim-that-outlives-its-transaction.md), draft, from external review.
+
 ## v1.1 — adoption
 
 Reduce the only real friction, which is writing the adapter.

@@ -28,7 +28,16 @@ agreement; the review was his own, in a personal capacity.
 - **A claim can outlive the process that made it.** If a crash lands between writing
   `IN_FLIGHT` and settling it, every retry is told the operation is in progress, indefinitely.
   The suite had a check for concurrent duplicates and nothing for a stranded claim — it would
-  have passed a ledger with this defect. An invariant is being written for it.
+  have passed a ledger with this defect. Proposed as INV-16 in
+  [`rfcs/0002`](rfcs/0002-a-claim-that-outlives-its-transaction.md), still open for review.
+
+  His point changed the invariant twice over. It produced the RFC, and then one of the questions
+  the RFC could not settle — whether a refused payment must be retryable under its original key —
+  turned out to be the load-bearing one. It is not, and the first draft would have failed a
+  correct ledger. That was settled by running the suite against TigerBeetle, which spends a failed
+  transfer id deliberately; see [`docs/tigerbeetle.md`](docs/tigerbeetle.md). The invariant is now
+  about whether a ledger tells the truth about a refused payment, rather than about which key the
+  caller retries under.
 - **Idempotency keys need an eviction policy.** Recorded in `docs/01-core-topics.md`, together
   with the reason it is a correctness parameter rather than housekeeping: evict a committed key
   before the longest possible retry and the retry is not a duplicate any more, it is a second
